@@ -91,6 +91,10 @@ L’interface charge actuellement Tailwind via `https://cdn.tailwindcss.com` et 
 
 ## Contrat API attendu
 
-Le proxy utilise le flux public observé par le client open source `tchenu/myges` : appel de `/oauth/authorize` avec `client_id=skolae-app`, identifiants MyGES en Basic, puis récupération du token dans le fragment de redirection. Les données sont ensuite lues sur `api.kordis.fr`. Ce flux est non officiel et peut changer ; il ne contourne pas l’authentification. Les listes peuvent être renvoyées directement ou sous `result`/`data`.
+Le proxy utilise le flux public observé par le client open source `tchenu/myges` : appel de `/oauth/authorize` avec `client_id=skolae-app`, identifiants MyGES en Basic, puis récupération du token dans le fragment de redirection. Les données sont ensuite lues sur `api.kordis.fr`. Ce flux est non officiel et peut changer ; il ne contourne pas l’authentification. Les listes peuvent être renvoyées directement ou sous `result`/`data`. La route `resource=profile` alimente le nom affiché dans le header via `/me/profile`.
+
+### Interface mobile
+
+L’interface suit les maquettes mobiles fournies : header corail, accueil, emploi du temps journalier avec sélection de date, menu latéral, relevé des absences et export `.ical`/impression PDF. Tous les libellés visibles sont en français. Le Service Worker est versionné à chaque refonte majeure : après déploiement, faites un rechargement forcé une fois pour activer le nouveau cache.
 
 Le projet ne contourne pas l'authentification MyGES et ne doit être utilisé qu'avec l'autorisation de l'ESGI et les endpoints documentés par son fournisseur.

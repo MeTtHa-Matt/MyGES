@@ -33,5 +33,6 @@ export const api = {
   planning: () => request('planning'),
   grades: () => request('grades'),
   absences: () => request('absences'),
+  profile: () => request('profile'),
   logout: () => request('logout', { method: 'POST' })
 };

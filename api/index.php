@@ -144,6 +144,7 @@ function upstream(string $path, string $method = 'GET', ?array $body = null, ?st
 $resource = $_GET['resource'] ?? '';
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 $routes = [
+    'profile' => ['path' => '/me/profile', 'requiresAuth' => true],
     'planning' => ['path' => envValue('MYGES_PLANNING_PATH', '/planning'), 'requiresAuth' => true],
     'grades' => ['path' => envValue('MYGES_GRADES_PATH', '/grades'), 'requiresAuth' => true],
     'absences' => ['path' => envValue('MYGES_ABSENCES_PATH', '/absences'), 'requiresAuth' => true],

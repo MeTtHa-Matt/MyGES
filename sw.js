@@ -1,4 +1,4 @@
-const CACHE_NAME = 'myges-campus-v1';
+const CACHE_NAME = 'myges-campus-v9';
 const BASE_PATH = new URL('./', self.registration.scope).pathname;
 const APP_SHELL = ['index.html', 'styles.css', 'src/app.js', 'src/api.js', 'src/storage.js', 'src/ui.js', 'manifest.json', 'icons/icon.svg'].map((path) => `${BASE_PATH}${path}`);
 
