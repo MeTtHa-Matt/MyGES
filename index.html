@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#102a43">
+  <meta name="description" content="Une interface rapide et résiliente pour consulter MyGES.">
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="styles.css">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <title>MyGES Campus</title>
+</head>
+<body>
+  <div id="app-shell" class="app-shell">
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">ESGI · CAMPUS</p>
+        <h1>MyGES <span>Campus</span></h1>
+      </div>
+      <button id="logout-button" class="icon-button" type="button" aria-label="Se déconnecter" hidden>↗</button>
+    </header>
+
+    <main id="main-content" class="main-content">
+      <section id="login-view" class="login-view" aria-labelledby="login-title">
+        <div class="intro-mark" aria-hidden="true">MG</div>
+        <p class="eyebrow">Votre espace étudiant</p>
+        <h2 id="login-title">Retrouvez votre campus, même quand le réseau hésite.</h2>
+        <p class="muted">Connectez-vous avec vos identifiants MyGES. Ils ne sont jamais stockés dans le navigateur.</p>
+        <form id="login-form" class="stack-form">
+          <label>Identifiant<input name="username" autocomplete="username" required></label>
+          <label>Mot de passe<input name="password" type="password" autocomplete="current-password" required></label>
+          <button class="primary-button" type="submit">Ouvrir mon espace <span>→</span></button>
+          <p id="login-error" class="form-error" role="alert" hidden></p>
+        </form>
+      </section>
+
+      <section id="dashboard-view" hidden>
+        <div id="connection-banner" class="status-banner" hidden></div>
+        <div class="welcome-row">
+          <div><p class="eyebrow">Aujourd’hui</p><h2 id="student-name">Mon campus</h2></div>
+          <span id="last-sync" class="sync-label">Pas encore synchronisé</span>
+        </div>
+        <div id="content-view" class="content-view"></div>
+      </section>
+    </main>
+
+    <dialog id="event-dialog" class="event-dialog">
+      <button id="close-dialog" class="dialog-close" type="button" aria-label="Fermer">×</button>
+      <div id="event-details"></div>
+    </dialog>
+
+    <nav id="bottom-nav" class="bottom-nav" aria-label="Navigation principale" hidden>
+      <button class="nav-item is-active" data-view="planning" type="button"><span>▦</span>Planning</button>
+      <button class="nav-item" data-view="grades" type="button"><span>⌁</span>Notes</button>
+      <button class="nav-item" data-view="absences" type="button"><span>!</span>Absences</button>
+      <button class="nav-item" data-view="profile" type="button"><span>◉</span>Profil</button>
+    </nav>
+  </div>
+  <script type="module" src="src/app.js"></script>
+</body>
+</html>

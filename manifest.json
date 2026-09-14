@@ -1,0 +1,14 @@
+{
+  "name": "MyGES Campus",
+  "short_name": "MyGES",
+  "description": "Planning, notes et absences ESGI, même hors connexion.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f7f9f8",
+  "theme_color": "#102a43",
+  "lang": "fr-FR",
+  "icons": [
+    { "src": "icons/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
