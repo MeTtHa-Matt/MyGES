@@ -4,7 +4,7 @@
  */
 
 function icone_maison() {
-    return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10v9a1 1 0 0 0 1 1H9a1 1 0 0 0 1-1v-4h4v4a1 1 0 0 0 1 1h2.5a1 1 0 0 0 1-1v-9"/></svg>';
+    return '<svg viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M3.2 10.7 12 3.4l8.8 7.3a1 1 0 0 1-1.3 1.5l-.5-.4v7.1a1.6 1.6 0 0 1-1.6 1.6h-3.1v-5.2h-4.6v5.2H6.6A1.6 1.6 0 0 1 5 18.9v-7.1l-.5.4a1 1 0 0 1-1.3-1.5Z"/><path d="M9.7 21.8h4.6v-6.5H9.7z" fill="#ff555a"/><rect x="6.8" y="12" width="2" height="2.4" rx=".4" fill="#ff555a"/><rect x="15.2" y="12" width="2" height="2.4" rx=".4" fill="#ff555a"/></svg>';
 }
 
 function icone_menu_hamburger() {

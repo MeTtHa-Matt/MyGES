@@ -8,8 +8,10 @@ $titre_page = 'Devoirs';
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.json">
 <title>Devoirs — Portail Étudiant</title>
-<link rel="stylesheet" href="assets/css/style.css">
+<link rel="stylesheet" href="assets/css/style.css?v=20260914-29">
 </head>
 <body>
 <div class="app-frame">
@@ -23,7 +25,7 @@ $titre_page = 'Devoirs';
         <hr class="separateur">
         <div class="etat-vide">
             <p>Aucun devoir pour les 7 prochains jours</p>
-            <?= illustration_boite_vide() ?>
+            <img class="etat-vide-image" src="assets/img/image.png" alt="Aucun résultat">
         </div>
     </main>
 
@@ -50,6 +52,9 @@ $titre_page = 'Devoirs';
 
     <div class="toast" id="toast"></div>
 </div>
-<script src="assets/js/app.js"></script>
+<script src="assets/js/cache-reset.js?v=20260914-8"></script>
+<script src="assets/js/api.js?v=20260914-9"></script>
+<script src="assets/js/storage.js?v=20260914-8"></script>
+<script src="assets/js/app.js?v=20260914-10"></script>
 </body>
 </html>

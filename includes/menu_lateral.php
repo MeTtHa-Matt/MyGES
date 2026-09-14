@@ -10,7 +10,7 @@
     <button type="button" class="icon-btn" id="btn-fermer-menu-rail" aria-label="Fermer le menu"><?= icone_menu_hamburger() ?></button>
     <div class="separateur-rail"></div>
     <span class="icone-motif"><?= icone_motif() ?></span>
-    <a href="login.php" class="icon-btn icone-pouvoir" aria-label="Déconnexion"><?= icone_pouvoir() ?></a>
+    <button type="button" class="icon-btn icone-pouvoir" id="btn-deconnexion" aria-label="Déconnexion"><?= icone_pouvoir() ?></button>
 </nav>
 
 <aside class="panneau-menu" aria-label="Menu de navigation">

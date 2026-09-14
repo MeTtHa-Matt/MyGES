@@ -13,8 +13,10 @@ $prochains_cours = array_slice($prochains_cours, 0, 3);
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.json">
 <title>Accueil — Portail Étudiant</title>
-<link rel="stylesheet" href="assets/css/style.css">
+<link rel="stylesheet" href="assets/css/style.css?v=20260914-29">
 </head>
 <body>
 <div class="app-frame">
@@ -30,7 +32,7 @@ $prochains_cours = array_slice($prochains_cours, 0, 3);
             <h2 class="section-titre">3 prochains cours</h2>
             <p class="libelle-jour">Demain</p>
             <?php if (empty($prochains_cours)): ?>
-                <p class="etat-vide-mini">Aucun cours à venir.</p>
+                <p class="etat-vide-mini planning-loading">Chargement de l’emploi du temps…</p>
             <?php else: ?>
                 <?php foreach ($prochains_cours as $c): ?>
                     <div class="cours-item">
@@ -78,6 +80,9 @@ $prochains_cours = array_slice($prochains_cours, 0, 3);
     const DONNEES_EMPLOI_DU_TEMPS = <?= json_encode($emploi_du_temps, JSON_UNESCAPED_UNICODE) ?>;
     const NOM_ETUDIANT = <?= json_encode($etudiant['nom_complet'], JSON_UNESCAPED_UNICODE) ?>;
 </script>
-<script src="assets/js/app.js"></script>
+<script src="assets/js/cache-reset.js?v=20260914-8"></script>
+<script src="assets/js/api.js?v=20260914-9"></script>
+<script src="assets/js/storage.js?v=20260914-8"></script>
+<script src="assets/js/app.js?v=20260914-10"></script>
 </body>
 </html>

@@ -11,8 +11,10 @@ $duree_totale = '00h00';
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.json">
 <title>Absences — Portail Étudiant</title>
-<link rel="stylesheet" href="assets/css/style.css">
+<link rel="stylesheet" href="assets/css/style.css?v=20260914-29">
 </head>
 <body>
 <div class="app-frame">
@@ -47,7 +49,7 @@ $duree_totale = '00h00';
         <?php if ($nb_absences === 0): ?>
             <div class="etat-vide">
                 <p>Aucune absence signalée</p>
-                <?= illustration_boite_vide() ?>
+                <img class="etat-vide-image" src="assets/img/image.png" alt="Aucun résultat">
             </div>
         <?php else: ?>
             <!-- Liste des absences (non utilisée dans cette démo) -->
@@ -90,6 +92,9 @@ $duree_totale = '00h00';
     <div class="toast" id="toast"></div>
 </div>
 
-<script src="assets/js/app.js"></script>
+<script src="assets/js/cache-reset.js?v=20260914-8"></script>
+<script src="assets/js/api.js?v=20260914-9"></script>
+<script src="assets/js/storage.js?v=20260914-8"></script>
+<script src="assets/js/app.js?v=20260914-10"></script>
 </body>
 </html>

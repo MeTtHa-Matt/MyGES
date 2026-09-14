@@ -15,7 +15,15 @@ $date_suivante   = date('Y-m-d', strtotime('+1 day', $ts));
 $jours_semaine_fr = ['Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi','Dimanche'];
 $mois_fr = ['','janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
 
-$numero_semaine = (int) date('W', $ts);
+$date_courante = new DateTimeImmutable($date_affichee . ' 00:00:00');
+$annee_scolaire = (int) $date_courante->format('n') >= 9
+    ? (int) $date_courante->format('Y')
+    : (int) $date_courante->format('Y') - 1;
+$debut_annee_scolaire = new DateTimeImmutable($annee_scolaire . '-09-01 00:00:00');
+if ((int) $debut_annee_scolaire->format('N') !== 1) {
+    $debut_annee_scolaire = $debut_annee_scolaire->modify('next monday');
+}
+$numero_semaine = max(1, (int) floor(($date_courante->getTimestamp() - $debut_annee_scolaire->getTimestamp()) / (7 * 86400)) + 1);
 $libelle_bouton = ($date_affichee === $aujourdhui) ? "Aujourd'hui" : $jours_semaine_fr[(int)date('N', $ts) - 1] . ' ' . (int)date('j', $ts) . ' ' . $mois_fr[(int)date('n', $ts)];
 
 $cours_du_jour = $emploi_du_temps[$date_affichee] ?? [];
@@ -25,8 +33,10 @@ $cours_du_jour = $emploi_du_temps[$date_affichee] ?? [];
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.json">
 <title>Emploi du temps — Portail Étudiant</title>
-<link rel="stylesheet" href="assets/css/style.css">
+<link rel="stylesheet" href="assets/css/style.css?v=20260914-29">
 <style media="print">
     .top-bar-actions, .rail-lateral, .panneau-menu, .overlay-menu, .actions-flottantes, .nav-jour button { display: none !important; }
 </style>
@@ -47,7 +57,9 @@ $cours_du_jour = $emploi_du_temps[$date_affichee] ?? [];
         <p class="libelle-semaine">Semaine <?= $numero_semaine ?></p>
 
         <?php if (empty($cours_du_jour)): ?>
-            <p class="creneau-vide">Pas de cours ce jour</p>
+            <div class="etat-vide planning-empty planning-loading">
+                <p>Chargement de l’emploi du temps…</p>
+            </div>
         <?php else: ?>
             <?php foreach ($cours_du_jour as $c): ?>
                 <div class="creneau">
@@ -99,6 +111,9 @@ $cours_du_jour = $emploi_du_temps[$date_affichee] ?? [];
     const DONNEES_EMPLOI_DU_TEMPS = <?= json_encode($emploi_du_temps, JSON_UNESCAPED_UNICODE) ?>;
     const NOM_ETUDIANT = <?= json_encode($etudiant['nom_complet'], JSON_UNESCAPED_UNICODE) ?>;
 </script>
-<script src="assets/js/app.js"></script>
+<script src="assets/js/cache-reset.js?v=20260914-8"></script>
+<script src="assets/js/api.js?v=20260914-9"></script>
+<script src="assets/js/storage.js?v=20260914-8"></script>
+<script src="assets/js/app.js?v=20260914-10"></script>
 </body>
 </html>
