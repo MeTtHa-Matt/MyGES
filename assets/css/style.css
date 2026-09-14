@@ -41,6 +41,7 @@ ul { list-style: none; margin: 0; padding: 0; }
     display: flex;
     flex-direction: column;
     box-shadow: 0 0 30px rgba(0,0,0,0.08);
+    padding-top: env(safe-area-inset-top);
 }
 
 /* ---------- Bandeau supérieur ---------- */
@@ -48,11 +49,16 @@ ul { list-style: none; margin: 0; padding: 0; }
     position: relative;
     width: 100%;
     min-height: 0;
+    margin-top: calc(-1 * env(safe-area-inset-top));
     padding: calc(8px + env(safe-area-inset-top)) 20px 28px;
     background: #ff555a;
     color: #111;
     border-radius: 0 0 28px 0;
     overflow: hidden;
+}
+
+@media (max-width: 480px) {
+    html, body { background: #ff555a; }
 }
 
 .top-bar::before {
@@ -638,6 +644,7 @@ hr.separateur {
     flex-direction: column;
     align-items: center;
     padding-top: 18px;
+    padding-bottom: calc(18px + env(safe-area-inset-bottom));
     gap: 22px;
     transform: translateX(100%);
     transition: transform .25s ease;

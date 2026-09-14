@@ -10,11 +10,15 @@ $duree_totale = '00h00';
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#ff555a">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
 <link rel="manifest" href="manifest.json">
 <title>Absences — Portail Étudiant</title>
-<link rel="stylesheet" href="assets/css/style.css?v=20260914-29">
+<link rel="stylesheet" href="assets/css/style.css?v=20260914-33">
 </head>
 <body>
 <div class="app-frame">

@@ -4,9 +4,10 @@
   "description": "Planning, notes et absences ESGI, même hors connexion.",
   "start_url": "./",
   "scope": "./",
-  "display": "standalone",
+  "display": "fullscreen",
+  "display_override": ["fullscreen", "standalone"],
   "background_color": "#f7f9f8",
-  "theme_color": "#102a43",
+  "theme_color": "#ff5964",
   "lang": "fr-FR",
   "icons": [
     { "src": "icons/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }

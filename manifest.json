@@ -4,9 +4,10 @@
   "description": "Planning, notes et absences ESGI.",
   "start_url": "./",
   "scope": "./",
-  "display": "standalone",
+  "display": "fullscreen",
+  "display_override": ["fullscreen", "standalone"],
   "background_color": "#f7f9f8",
-  "theme_color": "#102a43",
+  "theme_color": "#FF6B6B",
   "lang": "fr-FR",
   "icons": [
     { "src": "assets/img/favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
