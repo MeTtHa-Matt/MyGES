@@ -65,15 +65,15 @@ $cours_du_jour = $emploi_du_temps[$date_affichee] ?? [];
                 <p>Chargement de l’emploi du temps…</p>
             </div>
         <?php else: ?>
-            <?php foreach ($cours_du_jour as $c): ?>
+            <?php foreach ($cours_du_jour as $index => $c): ?>
                 <div class="creneau">
-                    <div class="creneau-heure"><?= $c['debut'] ?><?php if ($c['type'] !== 'note'): ?><br><?= $c['fin'] ?><?php endif; ?></div>
+                    <div class="creneau-heure"><span><?= $c['debut'] ?></span><?php if ($index === count($cours_du_jour) - 1 && $c['type'] !== 'note'): ?><span><?= $c['fin'] ?></span><?php endif; ?></div>
                     <div class="creneau-barre" style="background:<?= $c['couleur'] ?>"></div>
                     <div class="creneau-corps">
                         <div class="titre"><?= htmlspecialchars($c['titre']) ?></div>
                         <div class="meta">
                             <?php if ($c['type'] !== 'note'): ?><?= htmlspecialchars($c['type']) ?><br><?php endif; ?>
-                            <?= htmlspecialchars($c['prof']) ?><?php if ($c['salle']): ?><br><?= htmlspecialchars($c['salle']) ?><?php endif; ?>
+                            <?= htmlspecialchars($c['prof']) ?><?php if ($c['salle']): ?><br><strong><?= htmlspecialchars($c['salle']) ?></strong><?php endif; ?>
                         </div>
                     </div>
                 </div>

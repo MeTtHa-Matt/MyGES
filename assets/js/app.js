@@ -10,8 +10,26 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     const appFrame = document.querySelector('.app-frame');
+    if (sessionStorage.getItem('sans-transition-page')) {
+        appFrame?.classList.add('sans-transition');
+        sessionStorage.removeItem('sans-transition-page');
+    }
     const openMenu = () => appFrame?.classList.add('menu-ouvert');
     const closeMenu = () => appFrame?.classList.remove('menu-ouvert');
+    document.addEventListener('click', event => {
+        const link = event.target.closest('a[href]');
+        if (!link || event.defaultPrevented || link.target === '_blank' || link.hasAttribute('download') || link.dataset.actionPlaceholder !== undefined) return;
+        if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+        if (link.closest('.nav-jour')) {
+            sessionStorage.setItem('sans-transition-page', '1');
+            return;
+        }
+        const destination = new URL(link.href, window.location.href);
+        if (destination.origin !== window.location.origin || destination.pathname === window.location.pathname && destination.search === window.location.search) return;
+        event.preventDefault();
+        appFrame?.classList.add('page-sortie');
+        window.setTimeout(() => { window.location.href = link.href; }, 280);
+    });
     document.getElementById('btn-ouvrir-menu')?.addEventListener('click', openMenu);
     document.getElementById('btn-fermer-menu-rail')?.addEventListener('click', closeMenu);
     document.getElementById('overlay-menu')?.addEventListener('click', closeMenu);
@@ -134,7 +152,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const name = [firstName, lastName].filter(Boolean).join(' ') || displayName || user.name || user.username || 'Étudiant MyGES';
         const initials = name.split(/\s+/).filter(Boolean).slice(0, 2).map(part => part[0]).join('').toUpperCase() || 'MG';
         document.querySelectorAll('.top-bar-name, .panneau-entete .nom').forEach(element => element.textContent = name);
-        document.querySelectorAll('.avatar').forEach(element => element.textContent = initials);
+        document.querySelectorAll('.top-bar .avatar').forEach(element => element.textContent = initials);
     }
 
     async function loadProfile() {
@@ -174,10 +192,20 @@ document.addEventListener('DOMContentLoaded', () => {
         const visible = datedItems.length
             ? datedItems.filter(item => dateKey(item) === selected)
             : [];
-        const rows = visible.map((item, index) => {
+        const ordered = [...visible].sort((first, second) => (eventMoment(first)?.getTime() || 0) - (eventMoment(second)?.getTime() || 0));
+        const rows = ordered.reduce((html, item, index) => {
+            const previous = ordered[index - 1];
+            const previousEnd = previous && eventMoment(previous, true);
+            const currentStart = eventMoment(item);
+            if (previousEnd && currentStart && currentStart > previousEnd) {
+                const pauseTime = previousEnd.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }).replace(':', 'h');
+                html += `<div class="creneau creneau-pause"><div class="creneau-heure"><span>${escapeHtml(pauseTime)}</span></div><div class="creneau-barre"></div><div class="creneau-corps"><div class="titre">Pas de cours</div></div></div>`;
+            }
             const entry = normalize(item);
-            return `<div class="creneau"><div class="creneau-heure">${escapeHtml(entry.time)}</div><div class="creneau-barre" style="background:${escapeHtml(courseColor(item, index))}"></div><div class="creneau-corps"><div class="titre">${escapeHtml(entry.title)}</div><div class="meta">${escapeHtml(entry.type)}${entry.teacher ? `<br>${escapeHtml(entry.teacher)}` : ''}<br>${escapeHtml(entry.room)}</div></div></div>`;
-        }).join('');
+            const [startTime, endTime] = entry.time.split(/\s+-\s+/);
+            const displayedEnd = !ordered[index + 1] && endTime ? `<span>${escapeHtml(endTime)}</span>` : '';
+            return html + `<div class="creneau"><div class="creneau-heure"><span>${escapeHtml(startTime)}</span>${displayedEnd}</div><div class="creneau-barre" style="background:${escapeHtml(courseColor(item, index))}"></div><div class="creneau-corps"><div class="titre">${escapeHtml(entry.title)}</div><div class="meta">${escapeHtml(entry.type)}${entry.teacher ? `<br>${escapeHtml(entry.teacher)}` : ''}<br><strong>${escapeHtml(entry.room)}</strong></div></div></div>`;
+        }, '');
         const schedule = content.querySelector('.nav-jour')?.nextElementSibling;
         content.querySelectorAll('.creneau, .creneau-vide, .planning-empty').forEach(element => element.remove());
         schedule?.insertAdjacentHTML('afterend', rows || '<div class="etat-vide planning-empty"><p>Pas de cours ce jour</p><img class="etat-vide-image" src="assets/img/image.png" alt="Aucun cours ce jour"></div>');
@@ -304,10 +332,15 @@ document.addEventListener('DOMContentLoaded', () => {
         event.preventDefault();
         const submit = login.querySelector('button');
         const error = document.getElementById('login-error');
+        const loginPage = document.querySelector('.page-login');
+        const startedAt = performance.now();
         submit.disabled = true;
         try {
             await window.mygesApi.login({ username: login.identifiant.value, password: login.mot_de_passe.value });
             window.mygesStorage.markSession();
+            loginPage?.classList.add('connexion-en-cours');
+            const remaining = 700 - (performance.now() - startedAt);
+            if (remaining > 0) await new Promise(resolve => setTimeout(resolve, remaining));
             window.location.href = 'index.php';
         } catch (requestError) {
             if (error) { error.textContent = requestError.message; error.hidden = false; }
@@ -329,6 +362,18 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
     const logout = async () => { await window.mygesApi.logout().catch(() => {}); window.mygesStorage.clearSession(); window.location.href = 'login.php'; };
-    document.getElementById('btn-confirmer-deconnexion')?.addEventListener('click', logout);
+    document.getElementById('btn-confirmer-deconnexion')?.addEventListener('click', async event => {
+        const button = event.currentTarget;
+        const animation = document.getElementById('animation-deconnexion');
+        const startedAt = performance.now();
+        button.disabled = true;
+        appFrame?.classList.add('deconnexion-en-cours');
+        animation?.setAttribute('aria-hidden', 'false');
+        await window.mygesApi.logout().catch(() => {});
+        const remaining = 750 - (performance.now() - startedAt);
+        if (remaining > 0) await new Promise(resolve => setTimeout(resolve, remaining));
+        window.mygesStorage.clearSession();
+        window.location.href = 'login.php';
+    });
     document.getElementById('btn-deconnexion')?.addEventListener('click', openLogoutModal);
 });

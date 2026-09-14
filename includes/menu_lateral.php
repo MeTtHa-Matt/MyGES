@@ -10,12 +10,13 @@
     <button type="button" class="icon-btn" id="btn-fermer-menu-rail" aria-label="Fermer le menu"><?= icone_menu_hamburger() ?></button>
     <div class="separateur-rail"></div>
     <span class="icone-motif"><?= icone_motif() ?></span>
+    <div class="separateur-rail separateur-rail-bas"></div>
     <button type="button" class="icon-btn icone-pouvoir" id="btn-deconnexion" aria-label="Déconnexion"><?= icone_pouvoir() ?></button>
 </nav>
 
 <aside class="panneau-menu" aria-label="Menu de navigation">
     <div class="panneau-entete">
-        <div class="avatar"><?= htmlspecialchars($etudiant['initiales']) ?></div>
+        <div class="avatar menu-avatar"><?= icone_profil_menu() ?></div>
         <span class="nom"><?= htmlspecialchars($etudiant['nom_complet']) ?></span>
     </div>
     <ul class="panneau-liste">

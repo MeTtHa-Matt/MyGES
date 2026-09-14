@@ -41,3 +41,7 @@
         </div>
     </div>
 </div>
+<div class="animation-deconnexion" id="animation-deconnexion" aria-hidden="true">
+    <div class="deconnexion-anneau" aria-hidden="true"></div>
+    <p>Déconnexion...</p>
+</div>

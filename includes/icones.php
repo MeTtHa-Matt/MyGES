@@ -4,11 +4,15 @@
  */
 
 function icone_maison() {
-    return '<svg viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M3.2 10.7 12 3.4l8.8 7.3a1 1 0 0 1-1.3 1.5l-.5-.4v7.1a1.6 1.6 0 0 1-1.6 1.6h-3.1v-5.2h-4.6v5.2H6.6A1.6 1.6 0 0 1 5 18.9v-7.1l-.5.4a1 1 0 0 1-1.3-1.5Z"/><path d="M9.7 21.8h4.6v-6.5H9.7z" fill="#ff555a"/><rect x="6.8" y="12" width="2" height="2.4" rx=".4" fill="#ff555a"/><rect x="15.2" y="12" width="2" height="2.4" rx=".4" fill="#ff555a"/></svg>';
+    return '<svg viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="m2.5 10.6 9.5-8 9.5 8v10.2a1.2 1.2 0 0 1-1.2 1.2h-5.1v-6.2H8.8V22H3.7a1.2 1.2 0 0 1-1.2-1.2V10.6Z"/><path d="M9.1 15.6h5.8V22H9.1z" fill="#ff555a"/></svg>';
+}
+
+function icone_profil_menu() {
+    return '<svg viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="7.5" r="4"/><path d="M4 21c.5-4.3 3.5-6.5 8-6.5s7.5 2.2 8 6.5H4Z"/></svg>';
 }
 
 function icone_menu_hamburger() {
-    return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16"/><path d="M4 12h16"/><path d="M4 17h10"/></svg>';
+    return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M3 6h18"/><path d="M7 12h14"/><path d="M3 18h18"/></svg>';
 }
 
 function icone_chevron_bas() {
@@ -49,7 +53,7 @@ function icone_pouvoir() {
 
 function icone_motif() {
     // icone décorative "papillon" du rail latéral
-    return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 6v13"/><path d="M12 8c-1-3-5-4-7-2.5-1.6 1.2-1 4 1 5 1.6 1 4.2 1 6-.5"/><path d="M12 8c1-3 5-4 7-2.5 1.6 1.2 1 4-1 5-1.6 1-4.2 1-6-.5"/><path d="M12 13c-1.4-2-4.6-2.2-6 .5-1 2 .3 4.3 2.4 4.5 1.6.2 3-1 3.6-2.6"/><path d="M12 13c1.4-2 4.6-2.2 6 .5 1 2-.3 4.3-2.4 4.5-1.6.2-3-1-3.6-2.6"/></svg>';
+    return '<svg viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M11.2 10.1C9.8 6.2 6 4 3.7 5.3c-2.5 1.4-1.2 5.3 1.4 6.2 1.9.7 4.2.2 6.1-1.4Z"/><path d="M12.8 10.1C14.2 6.2 18 4 20.3 5.3c2.5 1.4 1.2 5.3-1.4 6.2-1.9.7-4.2.2-6.1-1.4Z"/><path d="M11.3 12.4c-2.3-1.9-5.9-1.4-6.8 1.3-.8 2.5 1.7 5.3 4.3 4.6 1.8-.5 2.9-2.6 3.3-4.7Z"/><path d="M12.7 12.4c2.3-1.9 5.9-1.4 6.8 1.3.8 2.5-1.7 5.3-4.3 4.6-1.8-.5-2.9-2.6-3.3-4.7Z"/><path d="M11.2 8.3h1.6v10.6h-1.6z"/></svg>';
 }
 
 function illustration_boite_vide() {
