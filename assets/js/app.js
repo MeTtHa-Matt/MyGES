@@ -499,30 +499,85 @@ document.addEventListener('DOMContentLoaded', () => {
     const login = document.getElementById('form-login');
     const passwordInput = document.getElementById('mot-de-passe');
     const passwordToggle = document.getElementById('toggle-password');
+    const passwordField = passwordInput?.closest('.password-field');
     passwordToggle?.addEventListener('click', () => {
         const isVisible = passwordInput.type === 'text';
+        passwordField?.classList.remove('mot-de-passe-affiche', 'mot-de-passe-cache');
         passwordInput.type = isVisible ? 'password' : 'text';
+        void passwordInput.offsetWidth;
+        passwordField?.classList.add(isVisible ? 'mot-de-passe-cache' : 'mot-de-passe-affiche');
         passwordToggle.classList.toggle('is-visible', !isVisible);
         passwordToggle.setAttribute('aria-pressed', String(!isVisible));
         passwordToggle.setAttribute('aria-label', isVisible ? 'Afficher le mot de passe' : 'Masquer le mot de passe');
     });
+    const credentialsInvite = document.getElementById('invite-identifiants');
+    const useCredentials = document.getElementById('utiliser-identifiants');
+    const declineCredentials = document.getElementById('refuser-identifiants');
+    let savedCredential = null;
+    const closeCredentialsInvite = () => {
+        credentialsInvite?.classList.remove('visible');
+        credentialsInvite?.setAttribute('aria-hidden', 'true');
+        if (credentialsInvite) credentialsInvite.hidden = true;
+        savedCredential = null;
+    };
+    const findSavedCredential = async () => {
+        if (!login || !window.PasswordCredential || !navigator.credentials?.get) return;
+        try {
+            const credential = await navigator.credentials.get({ password: true, mediation: 'silent' });
+            if (!credential || credential.type !== 'password' || !credential.password) return;
+            savedCredential = credential;
+            if (credentialsInvite) {
+                credentialsInvite.hidden = false;
+                credentialsInvite.classList.add('visible');
+                credentialsInvite.setAttribute('aria-hidden', 'false');
+                useCredentials?.focus();
+            }
+        } catch {}
+    };
+    useCredentials?.addEventListener('click', () => {
+        if (savedCredential) {
+            login.identifiant.value = savedCredential.id;
+            passwordInput.value = savedCredential.password;
+            login.classList.add('identifiants-remplis');
+            setTimeout(() => login.classList.remove('identifiants-remplis'), 700);
+        }
+        closeCredentialsInvite();
+    });
+    declineCredentials?.addEventListener('click', closeCredentialsInvite);
+    credentialsInvite?.addEventListener('click', event => { if (event.target === credentialsInvite) closeCredentialsInvite(); });
+    document.addEventListener('keydown', event => { if (event.key === 'Escape' && credentialsInvite?.classList.contains('visible')) closeCredentialsInvite(); });
+    findSavedCredential();
     if (login) login.addEventListener('submit', async event => {
         event.preventDefault();
-        const submit = login.querySelector('button');
+        const submit = login.querySelector('.bouton-connexion');
         const error = document.getElementById('login-error');
         const loginPage = document.querySelector('.page-login');
         const startedAt = performance.now();
+        loginPage?.classList.remove('connexion-echec', 'connexion-en-cours');
+        loginPage?.classList.add('connexion-verification');
         submit.disabled = true;
+        submit.textContent = 'Vérification...';
+        if (error) error.hidden = true;
         try {
             await window.mygesApi.login({ username: login.identifiant.value, password: login.mot_de_passe.value });
             window.mygesStorage.markSession();
-            loginPage?.classList.add('connexion-en-cours');
-            const remaining = 700 - (performance.now() - startedAt);
+            if (document.getElementById('souvenir')?.checked && window.PasswordCredential && navigator.credentials?.store) {
+                navigator.credentials.store(new PasswordCredential({ id: login.identifiant.value, password: login.mot_de_passe.value })).catch(() => {});
+            }
+            loginPage?.classList.remove('connexion-verification');
+            loginPage?.classList.add('connexion-en-cours', 'connexion-reussie');
+            const remaining = 1700 - (performance.now() - startedAt);
             if (remaining > 0) await new Promise(resolve => setTimeout(resolve, remaining));
             window.location.href = 'index.php';
         } catch (requestError) {
+            loginPage?.classList.remove('connexion-verification');
+            loginPage?.classList.add('connexion-echec');
             if (error) { error.textContent = requestError.message; error.hidden = false; }
-        } finally { submit.disabled = false; }
+            await new Promise(resolve => setTimeout(resolve, 650));
+        } finally {
+            submit.disabled = false;
+            submit.textContent = 'Se connecter';
+        }
     });
 
     const isLogin = Boolean(login);
