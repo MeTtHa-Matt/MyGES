@@ -22,8 +22,8 @@
             </div>
         </div>
         <div class="top-bar-actions">
-            <a href="index.php" class="icon-btn" aria-label="Accueil"><?= icone_maison() ?></a>
-            <button type="button" class="icon-btn" id="btn-ouvrir-menu" aria-label="Ouvrir le menu"><?= icone_menu_hamburger() ?></button>
+            <a href="index.php" class="icon-btn" aria-label="Accueil"><img src="assets/img/icone-maison.jpeg" alt=""></a>
+            <button type="button" class="icon-btn" id="btn-ouvrir-menu" aria-label="Ouvrir le menu"><img src="assets/img/icone-menu.svg" alt=""></button>
         </div>
     </div>
     <h1 class="top-bar-title"><?= htmlspecialchars($titre_page) ?></h1>

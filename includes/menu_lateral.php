@@ -7,7 +7,7 @@
 <div class="overlay-menu" id="overlay-menu"></div>
 
 <nav class="rail-lateral">
-    <button type="button" class="icon-btn" id="btn-fermer-menu-rail" aria-label="Fermer le menu"><?= icone_menu_hamburger() ?></button>
+    <button type="button" class="icon-btn" id="btn-fermer-menu-rail" aria-label="Fermer le menu"><img src="assets/img/icone-menu.svg" alt=""></button>
     <div class="separateur-rail"></div>
     <span class="icone-motif"><?= icone_motif() ?></span>
     <div class="separateur-rail separateur-rail-bas"></div>
