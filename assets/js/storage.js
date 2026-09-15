@@ -17,6 +17,26 @@ window.mygesStorage = {
             return null;
         }
     },
+    saveResource(resource, value) {
+        localStorage.setItem(`myges-resource-${resource}`, JSON.stringify({ value, savedAt: Date.now() }));
+    },
+    readResource(resource) {
+        try {
+            return JSON.parse(localStorage.getItem(`myges-resource-${resource}`) || 'null');
+        } catch {
+            return null;
+        }
+    },
+    saveStudent(profile) {
+        localStorage.setItem('myges-student', JSON.stringify(profile));
+    },
+    readStudent() {
+        try {
+            return JSON.parse(localStorage.getItem('myges-student') || 'null');
+        } catch {
+            return null;
+        }
+    },
     clearSession() {
         localStorage.removeItem('myges-authenticated');
     },

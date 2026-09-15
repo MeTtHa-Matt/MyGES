@@ -153,6 +153,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     function updateStudent(profile) {
+        if (profile?.offline) return;
         const user = profile?.data || profile?.result || profile || {};
         const findProfileValue = keys => nested(user, keys);
         const firstName = findProfileValue(['firstname', 'firstName', 'givenName', 'given_name', 'prenom', 'forename']);
@@ -163,9 +164,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const initials = name.split(/\s+/).filter(Boolean).slice(0, 2).map(part => part[0]).join('').toUpperCase() || 'MG';
         document.querySelectorAll('.top-bar-name, .panneau-entete .nom').forEach(element => element.textContent = name);
         document.querySelectorAll('.top-bar .avatar').forEach(element => element.textContent = initials);
+        if (name !== 'Étudiant MyGES' && !profile?.offline) window.mygesStorage.saveStudent({ name, initials });
     }
 
     async function loadProfile() {
+        const cachedStudent = window.mygesStorage.readStudent();
+        if (cachedStudent?.name) updateStudent(cachedStudent);
         try { updateStudent(await window.mygesApi.profile()); }
         catch (error) { if (error.status === 401) { window.mygesStorage.clearSession(); window.location.href = 'login.php'; } }
     }
@@ -173,7 +177,7 @@ document.addEventListener('DOMContentLoaded', () => {
     async function loadResource(resource, render) {
         const selectedDate = typeof DATE_AFFICHEE !== 'undefined' ? DATE_AFFICHEE : new Date().toISOString().slice(0, 10);
         const weekStart = resource === 'planning' ? weekStartKey(selectedDate) : '';
-        const cached = resource === 'planning' ? window.mygesStorage.readPlanningWeek(weekStart) : null;
+        const cached = resource === 'planning' ? window.mygesStorage.readPlanningWeek(weekStart) : window.mygesStorage.readResource(resource);
         if (cached?.value?.length) render(cached.value);
         try {
             const fetchFresh = async attempts => {
@@ -185,11 +189,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 return value;
             };
             const value = await fetchFresh(2);
+            if (!value.length && cached?.value?.length) return;
             if (resource === 'planning') window.mygesStorage.savePlanningWeek(weekStart, itemsForWeek(value, weekStart));
+            else window.mygesStorage.saveResource(resource, value);
             render(value);
         } catch (error) {
-            if (error.status === 401) { window.mygesStorage.clearSession(); window.location.href = 'login.php'; return; }
             if (cached?.value?.length) return;
+            if (error.status === 401 && resource !== 'grades') { window.mygesStorage.clearSession(); window.location.href = 'login.php'; return; }
+            if (error.status === 401 && resource === 'grades') {
+                const content = document.querySelector('.notes-content');
+                if (content) content.innerHTML = '<div class="etat-vide"><p>Impossible de synchroniser les notes pour le moment.</p><p>Ta session locale est conservée, réessaie dans quelques instants.</p></div>';
+                return;
+            }
             toast(error.message);
         }
     }
@@ -337,21 +348,94 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!content) return;
         if (!items.length) { content.innerHTML = '<div class="etat-vide"><p>Aucune note disponible pour le moment</p><img class="etat-vide-image" src="assets/img/image.png" alt="Aucun résultat"></div>'; return; }
 
-        const years = availableGradeYears(items);
-        const selectedYear = content.dataset.selectedYear ? String(content.dataset.selectedYear) : String(years[0]);
-        const filteredItems = years.length > 1
-            ? items.filter(item => String(gradeYear(item) ?? '') === selectedYear)
+        const periodKey = item => text(item.periodKey, '') || text(item.schoolYear || item.period || item.semester || item.term, '') || String(gradeYear(item) ?? 'Période actuelle');
+        const periodLabel = item => text(item.schoolYear || item.period || item.semester || item.term, '') || 'Période actuelle';
+        const periods = [...new Map(items.map(item => [periodKey(item), periodLabel(item)])).entries()];
+        const savedPeriod = content.dataset.selectedYear ? String(content.dataset.selectedYear) : '';
+        const selectedYear = periods.some(([key]) => String(key) === savedPeriod) ? savedPeriod : String(periods[0]?.[0] || 'Période actuelle');
+        const filteredItems = periods.length > 1
+            ? items.filter(item => periodKey(item) === selectedYear)
             : items;
 
-        const yearSelector = years.length > 1 ? `
+        const yearSelector = periods.length ? `
             <div class="notes-controls">
-                <label class="notes-label" for="select-note-year">Année</label>
+                <label class="notes-label" for="select-note-year">Année / période</label>
                 <select id="select-note-year" class="notes-select" aria-label="Choisir l’année des notes">
-                    ${years.map(year => `<option value="${year}" ${String(year) === selectedYear ? 'selected' : ''}>${year}</option>`).join('')}
+                    ${periods.map(([key, label]) => `<option value="${escapeHtml(key)}" ${String(key) === selectedYear ? 'selected' : ''}>${escapeHtml(label)}</option>`).join('')}
                 </select>
             </div>
         ` : '';
 
+        const firstValue = (source, keys) => {
+            if (!source || typeof source !== 'object') return '';
+            for (const key of keys) {
+                if (source[key] !== undefined && source[key] !== null && source[key] !== '') return source[key];
+            }
+            return '';
+        };
+        const blockLabel = (item, grade) => text(firstValue(grade, ['block', 'bloc', 'blockName', 'blocName', 'block_name', 'unit', 'unitName', 'ue', 'ueName', 'teachingUnit', 'teaching_unit', 'category']) || firstValue(item, ['block', 'bloc', 'blockName', 'blocName', 'block_name', 'unit', 'unitName', 'ue', 'ueName', 'teachingUnit', 'teaching_unit', 'category']), '');
+        const numericWeight = (source, fallback = {}) => {
+            const value = Number(firstValue(source, ['coefficient', 'coeff', 'weight', 'ponderation', 'credit', 'credits']));
+            const fallbackValue = Number(firstValue(fallback, ['coefficient', 'coeff', 'weight', 'ponderation', 'credit', 'credits']));
+            return Number.isFinite(value) && value > 0 ? value : (Number.isFinite(fallbackValue) && fallbackValue > 0 ? fallbackValue : 1);
+        };
+        const savedBlocks = (() => {
+            try { return JSON.parse(localStorage.getItem(`myges-note-blocks-${selectedYear}`) || '{}'); } catch { return {}; }
+        })();
+        const saveBlock = (subject, block) => {
+            if (block) savedBlocks[subject] = block;
+            else delete savedBlocks[subject];
+            localStorage.setItem(`myges-note-blocks-${selectedYear}`, JSON.stringify(savedBlocks));
+        };
+        const subjectScore = notes => {
+            const continuous = notes.filter(note => !note.isPartial && Number.isFinite(note.number));
+            const exams = notes.filter(note => note.isPartial && Number.isFinite(note.number));
+            if (!continuous.length || !exams.length) return continuous.length ? continuous.reduce((sum, note) => sum + note.number, 0) / continuous.length : (exams.length ? exams[0].number : null);
+            const continuousAverage = continuous.reduce((sum, note) => sum + note.number, 0) / continuous.length;
+            const examAverage = exams.reduce((sum, note) => sum + note.number, 0) / exams.length;
+            return (continuousAverage + examAverage) / 2;
+        };
+        const subjectBreakdown = notes => {
+            const continuous = notes.filter(note => !note.isPartial && Number.isFinite(note.number));
+            const exams = notes.filter(note => note.isPartial && Number.isFinite(note.number));
+            const continuousAverage = continuous.length ? continuous.reduce((sum, note) => sum + note.number, 0) / continuous.length : null;
+            const examAverage = exams.length ? exams.reduce((sum, note) => sum + note.number, 0) / exams.length : null;
+            return { continuousAverage, examAverage };
+        };
+        const formatAverage = value => Number.isFinite(value) ? value.toFixed(1) : '—';
+        const pickMessage = (messages, seed = '') => {
+            const value = String(seed).split('').reduce((total, character) => total + character.charCodeAt(0), 0);
+            return messages[value % messages.length];
+        };
+        const averageMessage = value => {
+            if (!Number.isFinite(value)) return 'Les petites notes arrivent bientôt, patience et douceur jusque-là.';
+            const messages = [
+                [8, ['Petit pas par petit pas, tu avances déjà très bien.', 'Le semestre joue les montagnes russes, mais tu tiens le guidon.', 'Une petite pause, une grande respiration, puis on repart doucement.', 'Chaque point gagné est une mini victoire à collectionner.', 'Tu n’as pas besoin d’être parfait, juste de continuer à avancer.', 'Les notes difficiles ne racontent qu’un chapitre, pas toute ton histoire.', 'Ton courage travaille en coulisses, même quand la moyenne boude un peu.', 'On garde le cap : les progrès aiment les efforts réguliers.', 'Un nuage passe toujours, surtout avec un peu de persévérance.', 'Tu peux être fier de toi rien que pour avoir continué.']],
+                [10, ['Les bases sont là, et elles sont prêtes à devenir encore plus solides.', 'Quelques matières font leur timide, mais rien n’est joué.', 'Tu es tout près du mieux : un petit coup de pouce et ça repart.', 'La moyenne te fait un clin d’œil, elle attend juste quelques points.', 'On resserre les lacets et on continue tranquillement.', 'Chaque prochaine note peut devenir une jolie remontée.', 'Tu as déjà construit une bonne partie du chemin.', 'Un peu de régularité et les résultats vont fleurir.', 'Les difficultés sont invitées à progresser avec toi.', 'Tu avances, même quand le tableau ne le montre pas encore assez.']],
+                [12, ['Un joli équilibre se dessine, continue comme ça.', 'Ta moyenne pousse bien, comme une petite plante studieuse.', 'Les efforts commencent à se voir, et c’est très chouette.', 'Tu tiens un rythme doux et efficace.', 'Le semestre prend une belle direction.', 'Chaque note ajoute une petite étoile à ton parcours.', 'Tu peux te féliciter : la régularité paie.', 'Le travail discret fait doucement de grandes choses.', 'Tu es sur une bonne lancée, garde cette énergie.', 'Ton semestre avance avec de jolies couleurs.']],
+                [14, ['Un semestre solide et plein de belles petites réussites.', 'Tu peux être content : ton travail commence à vraiment briller.', 'La moyenne est bien installée, comme un chat au soleil.', 'Tu avances avec sérieux et une belle constance.', 'Tes efforts forment une très jolie collection de réussites.', 'Le semestre te va bien, continue sur cette lancée.', 'Tu peux prendre un instant pour admirer le chemin parcouru.', 'C’est du travail propre, régulier et très encourageant.', 'Les bonnes habitudes portent leurs fruits avec élégance.', 'Tu construis une moyenne qui a fière allure.']],
+                [16, ['Très joli rythme : tes résultats ont le sourire.', 'Tu peux être fier, ton travail est vraiment régulier.', 'La moyenne brille fort aujourd’hui, et c’est mérité.', 'Tu avances avec une belle maîtrise et beaucoup de constance.', 'Les efforts sont bien visibles, bravo pour cette énergie.', 'Ton semestre ressemble à une petite réussite bien ficelée.', 'Tu as trouvé un super rythme, garde-le précieusement.', 'Les notes dansent joliment dans la bonne direction.', 'C’est solide, élégant et très encourageant.', 'Tu peux savourer cette belle dynamique.']],
+                [18, ['Quel niveau : tes résultats font presque des confettis.', 'Un semestre magnifique, porté par une superbe régularité.', 'Tu peux être très fier, cette moyenne est éclatante.', 'Les notes sont au rendez-vous et elles ont clairement le sourire.', 'C’est une vraie collection de belles réussites.', 'Ton travail brille comme une petite constellation.', 'Tu maintiens un niveau impressionnant avec beaucoup de sérieux.', 'Le semestre est superbement maîtrisé, bravo à toi.', 'Une performance toute douce et franchement remarquable.', 'Tu peux célébrer cette très belle réussite.']],
+                [Number.POSITIVE_INFINITY, ['Performance exceptionnelle : tu fais briller le tableau.', 'Un niveau remarquable, avec une régularité de champion.', 'Tes résultats sont magnifiques, quelle belle énergie.', 'Tu as transformé le travail en véritable petit feu d’artifice.', 'C’est impressionnant et entièrement mérité.', 'Ton semestre est une jolie démonstration de constance.', 'Les notes sont splendides, tu peux être vraiment fier.', 'Un grand bravo pour cette performance lumineuse.', 'Tu avances avec une maîtrise absolument remarquable.', 'Le tableau des notes n’a jamais été aussi content.']],
+            ];
+            const entry = messages.find(([limit]) => value < limit);
+            return pickMessage(entry[1], value.toFixed(1));
+        };
+        const subjectSignal = (value, seed = '') => {
+            if (!Number.isFinite(value)) return { className: 'is-pending', label: 'En attente', comment: 'La petite note se fait désirer, mais elle finira bien par arriver.' };
+            if (value < 5) { return { className: 'is-critical', label: 'Priorité', comment: pickMessage(['Cette matière mérite un gros câlin et un peu de temps.', 'On la prend doucement par la main pour remonter ensemble.', 'Pas de panique : un petit plan d’attaque peut tout changer.', 'Cette note est basse, mais ton potentiel ne l’est pas.', 'On respire, on découpe le problème, et on avance petit à petit.', 'Chaque nouvelle note peut écrire une suite beaucoup plus jolie.', 'La matière fait sa difficile, mais tu peux lui montrer qui commande.', 'Un peu d’aide, quelques exercices et la remontée commence.', 'Ce n’est qu’un point de départ, jamais une étiquette.', 'On transforme cette alerte en nouvelle victoire.'], seed) }; }
+            if (value < 8) { return { className: 'is-alert', label: 'À renforcer', comment: pickMessage(['Un peu de douceur et quelques révisions feront bon ménage.', 'Cette matière demande de l’attention, pas de la culpabilité.', 'On lui offre quelques exercices et beaucoup de confiance.', 'La remontée est à portée de main, vraiment.', 'Un petit rendez-vous régulier avec le cours devrait aider.', 'Tu peux apprivoiser cette matière à ton rythme.', 'Les progrès se cachent parfois juste derrière une bonne méthode.', 'Un coup de pouce ici, et la moyenne reprendra des couleurs.', 'Cette note n’est pas une fatalité, juste un petit signal.', 'On avance tranquillement, une notion après l’autre.'], seed) }; }
+            if (value < 10) { return { className: 'is-watch', label: 'À surveiller', comment: pickMessage(['Un petit regard attentif et tout devrait bien se passer.', 'La matière frôle la moyenne, elle mérite un peu d’encouragement.', 'Quelques points supplémentaires et elle sera toute contente.', 'On garde un œil dessus, sans pression inutile.', 'Une petite révision ciblée pourrait faire des merveilles.', 'Tu es proche du bon équilibre, continue doucement.', 'La moyenne hésite encore, mais elle peut vite basculer du bon côté.', 'Un peu de régularité et cette matière va respirer.', 'Tu n’es vraiment pas loin, courage pour la dernière marche.', 'Un petit effort ici peut avoir un joli effet.'], seed) }; }
+            if (value >= 18) { return { className: 'is-excellent', label: 'Excellent', comment: pickMessage(['Cette matière a clairement sorti ses confettis.', 'Une note magnifique, tu peux être très fier.', 'La matière rayonne, et c’est largement mérité.', 'Quel joli sans-faute dans l’énergie et la régularité.', 'Cette moyenne mérite une petite danse de victoire.', 'Un résultat splendide, bravo pour ce beau travail.', 'La matière te fait un grand sourire depuis le haut du tableau.', 'C’est brillant, propre et vraiment impressionnant.', 'Une très belle réussite à garder précieusement.', 'Les étoiles sont alignées, bravo à toi.'], seed) }; }
+            if (value >= 16) { return { className: 'is-strong', label: 'Très bon', comment: pickMessage(['Une très jolie moyenne, bravo pour cette régularité.', 'Cette matière est entre de bonnes mains.', 'Un résultat solide qui mérite un grand sourire.', 'Tu peux être fier de cette belle réussite.', 'La matière avance avec beaucoup d’élégance.', 'Très beau travail, la constance paie vraiment.', 'Une moyenne qui respire la maîtrise et le sérieux.', 'Cette matière te fait honneur, continue comme ça.', 'Un joli petit sommet déjà atteint.', 'La réussite est bien installée ici.'], seed) }; }
+            return null;
+        };
+        const weightedSubjectAverage = subjectGroups => {
+            const scored = subjectGroups.map(notes => ({ score: subjectScore(notes), weight: notes[0].weight })).filter(item => Number.isFinite(item.score));
+            if (!scored.length) return null;
+            const totalWeight = scored.reduce((sum, item) => sum + item.weight, 0);
+            return scored.reduce((sum, item) => sum + item.score * item.weight, 0) / totalWeight;
+        };
         const evaluations = filteredItems.flatMap(item => {
             const subject = text(item.subject || item.course || item.course_name || item.courseName || item.name || item.title, 'Matière');
             const rawEvaluations = item.evaluations || item.assessments || item.notes || item.grades;
@@ -360,17 +444,39 @@ document.addEventListener('DOMContentLoaded', () => {
                 const value = grade && typeof grade === 'object' ? grade.value ?? grade.grade ?? grade.note ?? grade.score : grade;
                 const label = grade && typeof grade === 'object' ? text(grade.label || grade.assessment || grade.evaluation || grade.exam || grade.type || grade.name, value === null || value === undefined || value === '' ? 'Aucune évaluation' : `Évaluation ${index + 1}`) : `Évaluation ${index + 1}`;
                 const details = `${label} ${subject}`.toLowerCase();
-                return { subject, value, label, isPartial: /partiel|examen|exam|final/.test(details) };
+                const gradeSource = grade && typeof grade === 'object' ? grade : {};
+                return { subject, value, label, block: blockLabel(item, grade), number: Number(value), weight: numericWeight(gradeSource, item), isPartial: /partiel|examen|exam|final/.test(details) };
             });
         });
-        const values = evaluations.map(item => Number(item.value)).filter(Number.isFinite);
-        const average = values.length ? (values.reduce((sum, value) => sum + value, 0) / values.length).toFixed(1) : '—';
-        const subjects = [...new Map(evaluations.map(item => [item.subject, evaluations.filter(note => note.subject === item.subject)])).entries()];
-        content.innerHTML = `${yearSelector}<section class="notes-overview"><p class="notes-kicker">Semestre en cours</p><strong>${escapeHtml(average)} <span>/ 20</span></strong><p>Moyenne générale provisoire · ${subjects.length} matière${subjects.length > 1 ? 's' : ''}</p></section><div class="notes-list">${subjects.map(([subject, notes]) => {
-            const subjectValues = notes.map(note => Number(note.value)).filter(Number.isFinite);
-            const subjectAverage = subjectValues.length ? (subjectValues.reduce((sum, value) => sum + value, 0) / subjectValues.length).toFixed(1) : '—';
-            return `<article class="matiere-card"><div class="matiere-head"><h2>${escapeHtml(subject)}</h2><strong>${escapeHtml(subjectAverage)}<small>/20</small></strong></div><div class="evaluations">${notes.map(note => `<div class="evaluation-row${note.value === null || note.value === undefined || note.value === '' ? ' is-empty' : ''}"><span class="evaluation-label">${escapeHtml(note.label)}${note.isPartial ? '<em>Partiel</em>' : ''}</span><strong>${escapeHtml(note.value ?? '—')}</strong></div>`).join('')}</div></article>`;
-        }).join('')}</div>`;
+        const subjects = [...new Map(evaluations.map(item => {
+            const subjectNotes = evaluations.filter(note => note.subject === item.subject);
+            const savedBlock = savedBlocks[item.subject];
+            subjectNotes.forEach(note => { note.block = savedBlock || ''; });
+            return [`${subjectNotes[0].block}\u0000${item.subject}`, subjectNotes];
+        })).values()];
+        const blockNumber = block => {
+            const match = String(block).match(/\d+/);
+            return match ? Number(match[0]) : Number.POSITIVE_INFINITY;
+        };
+        const blocks = [...new Map(subjects.filter(notes => notes[0].block).map(notes => [notes[0].block, subjects.filter(subjectNotes => subjectNotes[0].block === notes[0].block)])).entries()]
+            .sort(([first], [second]) => blockNumber(first) - blockNumber(second) || String(first).localeCompare(String(second), 'fr'));
+        const overallAverage = weightedSubjectAverage(subjects);
+        const unassigned = subjects.filter(notes => !notes[0].block);
+        const shouldOpenAssignments = unassigned.length > 0 && content.dataset.assignmentDismissed !== 'true';
+        const assignmentPanel = `<div class="notes-assignment-modal${shouldOpenAssignments ? ' is-open' : ''}" id="notes-assignment-modal" aria-hidden="${shouldOpenAssignments ? 'false' : 'true'}"><div class="notes-assignment-backdrop" data-close-assignments></div><section class="notes-assignments" role="dialog" aria-modal="true" aria-labelledby="notes-assignment-title"><div class="notes-assignments-head"><div><p class="notes-kicker">Organisation</p><h2 id="notes-assignment-title">Classer les matières</h2></div><button class="notes-assignment-close" type="button" data-close-assignments title="Fermer" aria-label="Fermer le classement">&times;</button></div><p class="notes-assignment-intro">Donne un nom de bloc à chaque matière. La moyenne du bloc apparaîtra ensuite dans les résultats.</p><div class="notes-assignment-list">${subjects.map(notes => {
+            const subject = notes[0].subject;
+            return `<label class="notes-assignment"><span>${escapeHtml(subject)}</span><input class="matiere-block-input" type="text" value="${escapeHtml(savedBlocks[subject] || '')}" data-subject="${escapeHtml(subject)}" placeholder="Nom du bloc"></label>`;
+        }).join('')}</div></section></div><button class="notes-assignment-fab" type="button" data-open-assignments title="Classer les matières" aria-label="Ouvrir le classement des matières"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7.5 12 4l8 3.5-8 3.5-8-3.5Zm0 4.5 8 3.5 8-3.5M4 16.5l8 3.5 8-3.5"/></svg></button>`;
+        content.innerHTML = `${yearSelector}<section class="notes-overview"><p class="notes-kicker">Semestre en cours</p><strong>${escapeHtml(formatAverage(overallAverage))} <span>/ 20</span></strong><p class="notes-overview-message">${escapeHtml(averageMessage(overallAverage))}</p></section>${assignmentPanel}<div class="notes-blocks">${blocks.map(([block, blockSubjects]) => {
+            const blockAverage = weightedSubjectAverage(blockSubjects);
+            return `<section class="notes-block"><div class="notes-block-head"><div><p class="notes-kicker">Bloc de matières</p><h2>${escapeHtml(block)}</h2></div><div class="notes-block-average"><span>Moyenne du bloc</span><strong>${escapeHtml(formatAverage(blockAverage))}<small>/20</small></strong></div></div><div class="notes-list">${blockSubjects.map(notes => {
+                const subjectAverage = subjectScore(notes);
+                const subject = notes[0].subject;
+                const breakdown = subjectBreakdown(notes);
+                const signal = subjectSignal(subjectAverage, subject);
+                return `<article class="matiere-card${signal ? ` ${signal.className}` : ''}"><div class="matiere-head"><div class="matiere-title"><h3>${escapeHtml(subject)}</h3>${signal ? `<span class="matiere-signal ${signal.className}">${escapeHtml(signal.label)}</span><p class="matiere-comment">${escapeHtml(signal.comment)}</p>` : ''}<div class="matiere-breakdown"><span>CC <b>${escapeHtml(formatAverage(breakdown.continuousAverage))}</b></span><span>Partiel <b>${escapeHtml(formatAverage(breakdown.examAverage))}</b></span></div></div><div class="matiere-score"><span>Moyenne matière</span><strong>${escapeHtml(formatAverage(subjectAverage))}<small>/20</small></strong></div></div><div class="evaluations">${notes.map(note => `<div class="evaluation-row${note.value === null || note.value === undefined || note.value === '' ? ' is-empty' : ''}"><span class="evaluation-label">${escapeHtml(note.label)}${note.isPartial ? '<em>Partiel</em>' : ''}</span><strong>${escapeHtml(note.value ?? '—')}</strong></div>`).join('')}</div></article>`;
+            }).join('')}</div></section>`;
+        }).join('')}${unassigned.length ? `<section class="notes-unassigned"><p class="notes-kicker">À classer</p><p>${unassigned.length} matière${unassigned.length > 1 ? 's' : ''} attend${unassigned.length > 1 ? 'ent' : ''} un nom de bloc.</p></section>` : ''}</div>`;
 
         const select = content.querySelector('#select-note-year');
         select?.addEventListener('change', event => {
@@ -378,6 +484,35 @@ document.addEventListener('DOMContentLoaded', () => {
             content.dataset.selectedYear = year;
             renderGrades(items);
         });
+        content.querySelectorAll('.matiere-block-input').forEach(input => {
+            input.addEventListener('change', event => {
+                const modal = content.querySelector('.notes-assignments');
+                const scrollTop = modal?.scrollTop || 0;
+                saveBlock(event.target.dataset.subject, event.target.value.trim());
+                renderGrades(items);
+                window.requestAnimationFrame(() => {
+                    const refreshedModal = content.querySelector('.notes-assignments');
+                    if (refreshedModal) refreshedModal.scrollTop = scrollTop;
+                });
+            });
+            input.addEventListener('keydown', event => {
+                if (event.key === 'Enter') { event.preventDefault(); event.target.blur(); }
+            });
+        });
+        const modal = content.querySelector('#notes-assignment-modal');
+        const closeAssignments = () => {
+            content.dataset.assignmentDismissed = 'true';
+            modal?.classList.remove('is-open');
+            modal?.setAttribute('aria-hidden', 'true');
+        };
+        const openAssignments = () => {
+            content.dataset.assignmentDismissed = 'false';
+            modal?.classList.add('is-open');
+            modal?.setAttribute('aria-hidden', 'false');
+            modal?.querySelector('input')?.focus();
+        };
+        content.querySelectorAll('[data-close-assignments]').forEach(element => element.addEventListener('click', closeAssignments));
+        content.querySelector('[data-open-assignments]')?.addEventListener('click', openAssignments);
     }
 
     function setupCalendar(items) {
@@ -559,8 +694,10 @@ document.addEventListener('DOMContentLoaded', () => {
         submit.textContent = 'Vérification...';
         if (error) error.hidden = true;
         try {
-            await window.mygesApi.login({ username: login.identifiant.value, password: login.mot_de_passe.value });
+            const loginPayload = await window.mygesApi.login({ username: login.identifiant.value, password: login.mot_de_passe.value });
             window.mygesStorage.markSession();
+            if (loginPayload?.student?.name) updateStudent(loginPayload.student);
+            try { updateStudent(await window.mygesApi.profile()); } catch {}
             if (document.getElementById('souvenir')?.checked && window.PasswordCredential && navigator.credentials?.store) {
                 navigator.credentials.store(new PasswordCredential({ id: login.identifiant.value, password: login.mot_de_passe.value })).catch(() => {});
             }

@@ -58,7 +58,7 @@ $titre_page = 'Devoirs';
 </div>
 <script src="assets/js/cache-reset.js?v=20260914-8"></script>
 <script src="assets/js/api.js?v=20260914-9"></script>
-<script src="assets/js/storage.js?v=20260914-8"></script>
-<script src="assets/js/app.js?v=20260914-10"></script>
+<script src="assets/js/storage.js?v=20260915-08"></script>
+<script src="assets/js/app.js?v=20260915-09"></script>
 </body>
 </html>
