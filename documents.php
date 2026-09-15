@@ -2,7 +2,8 @@
 require __DIR__ . '/includes/data.php';
 require __DIR__ . '/includes/icones.php';
 $titre_page = 'Documents';
-$url_blocs = 'assets/img/blocs%202i2.png';
+$url_blocs_2i = 'assets/img/2i.png';
+$url_blocs_1i = 'assets/img/blocs%201i.png';
 ?>
 <!DOCTYPE html>
 <html lang="fr">
@@ -50,7 +51,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         const response = await fetch('api/index.php?resource=documents&_fresh=' + Date.now(), { credentials: 'same-origin', cache: 'no-store' });
         const folders = await response.json();
         if (!response.ok) throw new Error(folders.error || 'Documents indisponibles');
-        folders.unshift({ period: 'Blocs des matières', documents: [{ title: 'Blocs 2i2.png', filename: 'blocs 2i2.png', localUrl: <?= json_encode($url_blocs, JSON_UNESCAPED_SLASHES) ?> }] });
+        folders.unshift({ period: 'Blocs des matières', documents: [
+            { title: 'Blocs 2i.png', filename: '2i.png', localUrl: <?= json_encode($url_blocs_2i, JSON_UNESCAPED_SLASHES) ?> },
+            { title: 'Blocs 1i.png', filename: 'blocs 1i.png', localUrl: <?= json_encode($url_blocs_1i, JSON_UNESCAPED_SLASHES) ?> }
+        ] });
         if (!folders.length) {
             list.innerHTML = '<div class="etat-vide"><p>Aucun document MyGES disponible.</p></div>';
             return;

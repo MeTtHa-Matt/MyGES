@@ -356,6 +356,99 @@ document.addEventListener('DOMContentLoaded', () => {
         const filteredItems = periods.length > 1
             ? items.filter(item => periodKey(item) === selectedYear)
             : items;
+        const parsePeriodType = label => {
+            if (!label) return null;
+            if (/trimestre/i.test(label)) return 'trimestre';
+            if (/semestre/i.test(label) || /\bS\d+\b/i.test(label)) return 'semestre';
+            return null;
+        };
+        const parsePeriodNumber = label => {
+            if (!label) return null;
+            const match = String(label).match(/(?:semestre|trimestre|S|T)\s*(\d+)/i) || String(label).match(/\b(\d+)\b/);
+            if (!match) return null;
+            const value = Number(match[1]);
+            return Number.isFinite(value) ? value : null;
+        };
+        const parseAcademicYear = label => {
+            if (!label) return null;
+            const matches = [...String(label).matchAll(/20\d{2}/g)].map(match => Number(match[0]));
+            return matches.length ? matches[0] : null;
+        };
+        const currentLabel = periods.find(([key]) => String(key) === selectedYear)?.[1] || '';
+        const currentType = parsePeriodType(currentLabel);
+        const currentYear = parseAcademicYear(currentLabel);
+        const annualPeriods = periods.filter(([key, label]) => {
+            if (parsePeriodType(label) !== currentType) return false;
+            return currentYear === null || parseAcademicYear(label) === currentYear;
+        }).sort(([, firstLabel], [, secondLabel]) => parsePeriodNumber(firstLabel) - parsePeriodNumber(secondLabel));
+        const expectedPeriodCount = currentType === 'semestre' ? 2 : (currentType === 'trimestre' ? 3 : 0);
+        const completeAnnualPeriods = expectedPeriodCount > 0
+            && annualPeriods.length === expectedPeriodCount
+            && annualPeriods.every(([, label], index) => parsePeriodNumber(label) === index + 1);
+        const periodBlockAverage = periodKeyValue => {
+            const periodItems = items.filter(item => periodKey(item) === periodKeyValue);
+            const periodBlocks = savedBlocksForPeriod(periodKeyValue);
+            const assignedBlockAverages = [...new Map(
+                periodItems
+                    .map(item => {
+                        const subject = text(item.subject || item.course || item.course_name || item.courseName || item.name || item.title, 'Matière');
+                        const blockName = normalizeBlockName(periodBlocks[subject] ?? blockLabel(item, null));
+                        if (isIgnoredBlock(blockName) || blockName === '') return null;
+                        return [blockName, []];
+                    })
+                    .filter(Boolean)
+            )].map(([blockName]) => {
+                const blockSubjects = periodItems.reduce((groups, item) => {
+                    const subject = text(item.subject || item.course || item.course_name || item.courseName || item.name || item.title, 'Matière');
+                    const blockName = normalizeBlockName(periodBlocks[subject] ?? blockLabel(item, null));
+                    if (normalizeBlockName(blockName) !== blockName) return groups;
+                    if (blockName !== blockName) return groups;
+                    const rawEvaluations = item.evaluations || item.assessments || item.notes || item.grades;
+                    const nestedGrades = Array.isArray(rawEvaluations) && rawEvaluations.length ? rawEvaluations : [item];
+                    const notes = nestedGrades.map((grade, index) => {
+                        const value = grade && typeof grade === 'object' ? grade.value ?? grade.grade ?? grade.note ?? grade.score : grade;
+                        const label = grade && typeof grade === 'object'
+                            ? text(grade.label || grade.assessment || grade.evaluation || grade.exam || grade.type || grade.name, `Évaluation ${index + 1}`)
+                            : `Évaluation ${index + 1}`;
+                        const gradeSource = grade && typeof grade === 'object' ? grade : {};
+                        const number = Number(value);
+                        return { number, weight: numericWeight(gradeSource, item), isPartial: /partiel|examen|exam|final/.test(`${label} ${subject}`.toLowerCase()) };
+                    }).filter(note => Number.isFinite(note.number));
+                    if (!notes.length) return groups;
+                    return [...groups, { subject, notes, weight: 1, block: blockName }];
+                }, []);
+                return blockSubjects.filter(subjectNotes => subjectNotes.block === blockName && subjectNotes.notes.length).map(subjectNotes => subjectNotes.notes);
+            }).filter(blockSubjects => blockSubjects.length).map(blockSubjects => weightedSubjectAverage(blockSubjects));
+            const validBlockAverages = assignedBlockAverages.filter(Number.isFinite);
+            if (!validBlockAverages.length) return null;
+            return validBlockAverages.reduce((sum, value) => sum + value, 0) / validBlockAverages.length;
+        };
+        const cumulativeAverageForSelectedPeriod = () => {
+            const currentType = parsePeriodType(currentLabel);
+            const currentNumber = parsePeriodNumber(currentLabel);
+            const currentYear = parseAcademicYear(currentLabel);
+            if (!currentType || !Number.isFinite(currentNumber)) return overallAverage;
+            const relevantPeriods = periods.filter(([key, label]) => {
+                const labelType = parsePeriodType(label);
+                const labelNumber = parsePeriodNumber(label);
+                const labelYear = parseAcademicYear(label);
+                if (labelType !== currentType || !Number.isFinite(labelNumber)) return false;
+                if (currentYear !== null && labelYear !== null && labelYear !== currentYear) return false;
+                return labelNumber <= currentNumber;
+            });
+            const averages = relevantPeriods
+                .map(([key]) => periodBlockAverage(key))
+                .filter(Number.isFinite);
+            if (!averages.length) return overallAverage;
+            return averages.reduce((sum, value) => sum + value, 0) / averages.length;
+        };
+        const annualAverageFromBlocks = () => {
+            if (!completeAnnualPeriods) return null;
+            const averages = annualPeriods.map(([key]) => periodBlockAverage(key)).filter(Number.isFinite);
+            return averages.length === expectedPeriodCount
+                ? averages.reduce((sum, value) => sum + value, 0) / averages.length
+                : null;
+        };
 
         const yearSelector = periods.length ? `
             <div class="notes-controls">
@@ -382,6 +475,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const savedBlocks = (() => {
             try { return JSON.parse(localStorage.getItem(`myges-note-blocks-${selectedYear}`) || '{}'); } catch { return {}; }
         })();
+        const savedBlocksForPeriod = periodKeyValue => {
+            if (String(periodKeyValue) === String(selectedYear)) return savedBlocks;
+            try { return JSON.parse(localStorage.getItem(`myges-note-blocks-${periodKeyValue}`) || '{}'); } catch { return {}; }
+        };
         const saveBlock = (subject, block) => {
             if (block) savedBlocks[subject] = block;
             else delete savedBlocks[subject];
@@ -406,6 +503,97 @@ document.addEventListener('DOMContentLoaded', () => {
         const pickMessage = (messages, seed = '') => {
             const value = String(seed).split('').reduce((total, character) => total + character.charCodeAt(0), 0);
             return messages[value % messages.length];
+        };
+        const normalizeBlockName = value => String(value ?? '').trim();
+        const isIgnoredBlock = value => {
+            const blockName = normalizeBlockName(value);
+            return blockName === '' || blockName === '0' || blockName.toLowerCase() === 'zero';
+        };
+        const averageByPeriod = periodItems => {
+            const periodSubjects = [...new Map(periodItems.map(item => {
+                const subject = text(item.subject || item.course || item.course_name || item.courseName || item.name || item.title, 'Matière');
+                const rawEvaluations = item.evaluations || item.assessments || item.notes || item.grades;
+                const nestedGrades = Array.isArray(rawEvaluations) && rawEvaluations.length ? rawEvaluations : [item];
+                return [subject, nestedGrades];
+            })).entries()].map(([subject, rawGrades]) => {
+                const notes = rawGrades.map((grade, index) => {
+                    const value = grade && typeof grade === 'object' ? grade.value ?? grade.grade ?? grade.note ?? grade.score : grade;
+                    const label = grade && typeof grade === 'object' ? text(grade.label || grade.assessment || grade.evaluation || grade.exam || grade.type || grade.name, value === null || value === undefined || value === '' ? 'Aucune évaluation' : `Évaluation ${index + 1}`) : `Évaluation ${index + 1}`;
+                    const gradeSource = grade && typeof grade === 'object' ? grade : {};
+                    return { subject, value, label, block: '', number: Number(value), weight: numericWeight(gradeSource, {}), isPartial: /partiel|examen|exam|final/.test(String(label).toLowerCase()) };
+                }).filter(note => Number.isFinite(note.number));
+                return notes;
+            }).filter(notes => notes.length);
+            if (!periodSubjects.length) return null;
+            return weightedSubjectAverage(periodSubjects);
+        };
+        const computeAnnualAverage = allItems => {
+            const periodKeys = [...new Set(allItems.map(item => periodKey(item)).filter(Boolean))];
+            if (!periodKeys.length) return overallAverage;
+            const filteredItems = allItems.filter(item => {
+                const subject = text(item.subject || item.course || item.course_name || item.courseName || item.name || item.title, 'Matière');
+                const blockName = normalizeBlockName(savedBlocks[subject] ?? blockLabel(item, null));
+                return !isIgnoredBlock(blockName);
+            });
+            const periodAverages = periodKeys
+                .map(key => averageByPeriod(filteredItems.filter(item => periodKey(item) === key)))
+                .filter(Number.isFinite);
+            if (!periodAverages.length) return overallAverage;
+            const semesterCount = filteredItems.filter(item => /semestre/i.test(String(periodLabel(item)))).length
+                ? filteredItems.filter(item => /semestre/i.test(String(periodLabel(item)))).length / Math.max(1, periodAverages.length)
+                : 0;
+            const trimesterCount = filteredItems.filter(item => /trimestre/i.test(String(periodLabel(item)))).length
+                ? filteredItems.filter(item => /trimestre/i.test(String(periodLabel(item)))).length / Math.max(1, periodAverages.length)
+                : 0;
+            if (semesterCount > 0 && periodAverages.length >= 2) return periodAverages.reduce((sum, value) => sum + value, 0) / periodAverages.length;
+            if (trimesterCount > 0 && periodAverages.length >= 3) return periodAverages.reduce((sum, value) => sum + value, 0) / periodAverages.length;
+            return overallAverage;
+        };
+        const buildJuryStatus = (blockData, annualAverage) => {
+            const blocks = blockData.map(([label, subjects]) => {
+                const scores = subjects.map(subjectNotes => subjectScore(subjectNotes)).filter(Number.isFinite);
+                const blockAverage = weightedSubjectAverage(subjects);
+                const zeroSubjects = scores.filter(score => score === 0).length;
+                const lowSubjects = scores.filter(score => score <= 6).length;
+                const valid = Number.isFinite(blockAverage) && blockAverage >= 10 && zeroSubjects === 0 && lowSubjects < 2;
+                return { label, blockAverage, valid, hasRattrapageReason: !valid };
+            });
+            const allBlocksValid = blocks.length > 0 && blocks.every(block => block.valid);
+            const average = Number.isFinite(annualAverage) ? annualAverage : 0;
+            if (average >= 10 && allBlocksValid) {
+                return {
+                    tone: 'is-pass',
+                    tag: 'Passe',
+                    title: 'Tu passes l’année',
+                    summary: pickMessage(['Tu as la moyenne générale et tous tes blocs sont validés.', 'Ton année est validée : la moyenne et les blocs sont au rendez-vous.', 'Les conditions sont réunies, tu passes l’année.'], average),
+                    detail: 'La décision du jury est favorable.'
+                };
+            }
+            if (average < 8) {
+                return {
+                    tone: 'is-danger',
+                    tag: 'Redouble',
+                    title: 'Tu redoubles',
+                    summary: pickMessage(['La moyenne annuelle est inférieure à 8.', 'La moyenne de l’année est trop basse pour valider le passage.', 'Avec cette moyenne annuelle, le passage n’est pas possible.'], average),
+                    detail: 'Le jury considère l’année comme non validée.'
+                };
+            }
+            if (average >= 8 && blocks.some(block => block.hasRattrapageReason)) {
+                return {
+                    tone: 'is-limit',
+                    tag: 'Rattrapage',
+                    title: 'Tu vas en rattrapage',
+                    summary: pickMessage(['Au moins un bloc ne valide pas les conditions de passage.', 'Certaines moyennes de matières ou de blocs nécessitent un rattrapage.', 'Les conditions de validation ne sont pas toutes réunies, mais le rattrapage reste possible.'], average),
+                    detail: 'Ta moyenne annuelle permet encore l’accès au rattrapage.'
+                };
+            }
+            return {
+                tone: 'is-limit',
+                tag: 'Rattrapage',
+                title: 'Tu vas en rattrapage',
+                summary: 'Tu es dans la zone de rattrapage.',
+                detail: 'La moyenne est trop basse pour passer, mais pas assez basse pour redoubler.'
+            };
         };
         const averageMessage = value => {
             if (!Number.isFinite(value)) return 'Les petites notes arrivent bientôt, patience et douceur jusque-là.';
@@ -436,6 +624,38 @@ document.addEventListener('DOMContentLoaded', () => {
             const totalWeight = scored.reduce((sum, item) => sum + item.weight, 0);
             return scored.reduce((sum, item) => sum + item.score * item.weight, 0) / totalWeight;
         };
+        const annualBlockData = () => {
+            if (!completeAnnualPeriods) return [];
+            const subjectsByBlock = new Map();
+            annualPeriods.forEach(([periodKeyValue]) => {
+                const periodBlocks = savedBlocksForPeriod(periodKeyValue);
+                items.filter(item => periodKey(item) === periodKeyValue).forEach(item => {
+                    const subject = text(item.subject || item.course || item.course_name || item.courseName || item.name || item.title, 'Matière');
+                    const block = normalizeBlockName(periodBlocks[subject] ?? blockLabel(item, null));
+                    if (isIgnoredBlock(block)) return;
+                    const rawEvaluations = item.evaluations || item.assessments || item.notes || item.grades;
+                    const nestedGrades = Array.isArray(rawEvaluations) && rawEvaluations.length ? rawEvaluations : [item];
+                    const notes = nestedGrades.map((grade, index) => {
+                        const value = grade && typeof grade === 'object' ? grade.value ?? grade.grade ?? grade.note ?? grade.score : grade;
+                        const label = grade && typeof grade === 'object'
+                            ? text(grade.label || grade.assessment || grade.evaluation || grade.exam || grade.type || grade.name, `Évaluation ${index + 1}`)
+                            : `Évaluation ${index + 1}`;
+                        const gradeSource = grade && typeof grade === 'object' ? grade : {};
+                        return { number: Number(value), weight: numericWeight(gradeSource, item), isPartial: /partiel|examen|exam|final/.test(`${label} ${subject}`.toLowerCase()) };
+                    }).filter(note => Number.isFinite(note.number));
+                    if (!notes.length) return;
+                    const key = `${block}\u0000${subject}`;
+                    if (!subjectsByBlock.has(key)) subjectsByBlock.set(key, { block, subject, notes: [] });
+                    subjectsByBlock.get(key).notes.push(...notes);
+                });
+            });
+            const blocks = new Map();
+            subjectsByBlock.forEach(subjectData => {
+                if (!blocks.has(subjectData.block)) blocks.set(subjectData.block, []);
+                blocks.get(subjectData.block).push(subjectData.notes);
+            });
+            return [...blocks.entries()];
+        };
         const evaluations = filteredItems.flatMap(item => {
             const subject = text(item.subject || item.course || item.course_name || item.courseName || item.name || item.title, 'Matière');
             const rawEvaluations = item.evaluations || item.assessments || item.notes || item.grades;
@@ -458,16 +678,38 @@ document.addEventListener('DOMContentLoaded', () => {
             const match = String(block).match(/\d+/);
             return match ? Number(match[0]) : Number.POSITIVE_INFINITY;
         };
-        const blocks = [...new Map(subjects.filter(notes => notes[0].block).map(notes => [notes[0].block, subjects.filter(subjectNotes => subjectNotes[0].block === notes[0].block)])).entries()]
+        const validSubjects = subjects.filter(notes => !isIgnoredBlock(normalizeBlockName(notes[0].block)));
+        const blocks = [...new Map(subjects.filter(notes => !isIgnoredBlock(normalizeBlockName(notes[0].block)) && normalizeBlockName(notes[0].block) !== '').map(notes => [normalizeBlockName(notes[0].block), subjects.filter(subjectNotes => normalizeBlockName(subjectNotes[0].block) === normalizeBlockName(notes[0].block) && !isIgnoredBlock(normalizeBlockName(subjectNotes[0].block)))])).entries()]
             .sort(([first], [second]) => blockNumber(first) - blockNumber(second) || String(first).localeCompare(String(second), 'fr'));
-        const overallAverage = weightedSubjectAverage(subjects);
+        const overallAverage = weightedSubjectAverage(validSubjects);
+        const displayAverage = periodBlockAverage(selectedYear) ?? overallAverage;
+        const annualBlocks = annualBlockData();
+        const annualBlockAverages = annualBlocks.map(([label, subjects]) => ({
+            label,
+            subjects,
+            average: weightedSubjectAverage(subjects),
+            scores: subjects.map(subjectNotes => subjectScore(subjectNotes)).filter(Number.isFinite)
+        }));
+        const annualAverage = annualBlockAverages.length
+            ? annualBlockAverages.reduce((sum, block) => sum + block.average, 0) / annualBlockAverages.length
+            : annualAverageFromBlocks();
+        const juryStatus = buildJuryStatus(annualBlocks, annualAverage);
         const unassigned = subjects.filter(notes => !notes[0].block);
         const shouldOpenAssignments = unassigned.length > 0 && content.dataset.assignmentDismissed !== 'true';
+        const classifiedSubjects = subjects.filter(notes => !isIgnoredBlock(normalizeBlockName(notes[0].block)) && normalizeBlockName(notes[0].block) !== '');
+        const allAssigned = subjects.length > 0 && subjects.every(notes => !isIgnoredBlock(normalizeBlockName(notes[0].block)) && normalizeBlockName(notes[0].block) !== '');
+        const allAnnualSubjectsAssigned = completeAnnualPeriods && annualPeriods.every(([periodKeyValue]) => {
+            const periodBlocks = savedBlocksForPeriod(periodKeyValue);
+            const periodSubjects = items.filter(item => periodKey(item) === periodKeyValue);
+            return periodSubjects.length > 0 && [...new Set(periodSubjects.map(item => text(item.subject || item.course || item.course_name || item.courseName || item.name || item.title, 'Matière')))]
+                .every(subject => !isIgnoredBlock(normalizeBlockName(periodBlocks[subject])));
+        });
         const assignmentPanel = `<div class="notes-assignment-modal${shouldOpenAssignments ? ' is-open' : ''}" id="notes-assignment-modal" aria-hidden="${shouldOpenAssignments ? 'false' : 'true'}"><div class="notes-assignment-backdrop" data-close-assignments></div><section class="notes-assignments" role="dialog" aria-modal="true" aria-labelledby="notes-assignment-title"><div class="notes-assignments-head"><div><p class="notes-kicker">Organisation</p><h2 id="notes-assignment-title">Classer les matières</h2></div><button class="notes-assignment-close" type="button" data-close-assignments title="Fermer" aria-label="Fermer le classement">&times;</button></div><p class="notes-assignment-intro">Donne un nom de bloc à chaque matière. La moyenne du bloc apparaîtra ensuite dans les résultats.</p><div class="notes-assignment-list">${subjects.map(notes => {
             const subject = notes[0].subject;
             return `<label class="notes-assignment"><span>${escapeHtml(subject)}</span><input class="matiere-block-input" type="text" value="${escapeHtml(savedBlocks[subject] || '')}" data-subject="${escapeHtml(subject)}" placeholder="Nom du bloc"></label>`;
-        }).join('')}</div></section></div><button class="notes-assignment-fab" type="button" data-open-assignments title="Classer les matières" aria-label="Ouvrir le classement des matières"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7.5 12 4l8 3.5-8 3.5-8-3.5Zm0 4.5 8 3.5 8-3.5M4 16.5l8 3.5 8-3.5"/></svg></button>`;
-        content.innerHTML = `${yearSelector}<section class="notes-overview"><p class="notes-kicker">Semestre en cours</p><strong>${escapeHtml(formatAverage(overallAverage))} <span>/ 20</span></strong><p class="notes-overview-message">${escapeHtml(averageMessage(overallAverage))}</p></section>${assignmentPanel}<div class="notes-blocks">${blocks.map(([block, blockSubjects]) => {
+        }).join('')}</div></section></div><button class="notes-assignment-fab" type="button" data-open-assignments title="Classer les matières" aria-label="Ouvrir le classement des matières"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7.5 12 4l8 3.5-8 3.5-8-3.5Zm0 4.5 8 3.5 8-3.5M4 16.5l8 3.5 8-3.5"/></svg></button><div class="notes-assignment-modal" id="notes-rules-modal" aria-hidden="true"><div class="notes-assignment-backdrop" data-close-rules></div><section class="notes-assignments notes-rules" role="dialog" aria-modal="true" aria-labelledby="notes-rules-title"><div class="notes-assignments-head"><div><p class="notes-kicker">Règles de décision</p><h2 id="notes-rules-title">Validation de l’année</h2></div><button class="notes-assignment-close" type="button" data-close-rules title="Fermer" aria-label="Fermer les règles">&times;</button></div><div class="notes-rules-list"><article><h3>Passage</h3><p>Moyenne annuelle supérieure ou égale à 10, tous les blocs validés.</p><ul><li>Moyenne annuelle du bloc supérieure ou égale à 10.</li><li>Aucune moyenne de matière égale à 0.</li><li>Moins de deux matières du même bloc avec une moyenne inférieure ou égale à 6.</li></ul></article><article><h3>Rattrapage</h3><p>Moyenne annuelle supérieure ou égale à 8, avec au moins une condition de rattrapage :</p><ul><li>Au moins un bloc a une moyenne annuelle inférieure à 10.</li><li>Une ou plusieurs matières ont une moyenne annuelle égale à 0.</li><li>Au moins deux matières d’un même bloc ont une moyenne annuelle inférieure ou égale à 6.</li></ul></article><article><h3>Redoublement / exclusion</h3><p>Moyenne annuelle inférieure à 8.</p></article></div></section></div><button class="notes-info-fab" type="button" data-open-rules title="Voir les règles de décision" aria-label="Voir les règles de décision"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 10.5v6M12 7.5h.01"/></svg></button>`;
+        const juryBanner = allAnnualSubjectsAssigned && Number.isFinite(annualAverage) ? `<section class="notes-jury-banner ${juryStatus.tone}"><div class="notes-jury-topline">Moyenne annuelle</div><div class="notes-jury-header"><div><h2>${escapeHtml(formatAverage(annualAverage))} / 20</h2><p>${escapeHtml(juryStatus.title)}</p></div><span class="notes-jury-tag">${escapeHtml(juryStatus.tag)}</span></div><p class="notes-jury-detail">${escapeHtml(juryStatus.summary)} ${escapeHtml(juryStatus.detail)}</p></section>` : '';
+        content.innerHTML = `${yearSelector}${juryBanner}<section class="notes-overview"><p class="notes-kicker">${parsePeriodType(currentLabel) === 'trimestre' ? 'Trimestre en cours' : 'Semestre en cours'}</p><strong>${escapeHtml(formatAverage(displayAverage))} <span>/ 20</span></strong><p class="notes-overview-message">${escapeHtml(averageMessage(displayAverage))}</p></section>${assignmentPanel}<div class="notes-blocks">${blocks.map(([block, blockSubjects]) => {
             const blockAverage = weightedSubjectAverage(blockSubjects);
             return `<section class="notes-block"><div class="notes-block-head"><div><p class="notes-kicker">Bloc de matières</p><h2>${escapeHtml(block)}</h2></div><div class="notes-block-average"><span>Moyenne du bloc</span><strong>${escapeHtml(formatAverage(blockAverage))}<small>/20</small></strong></div></div><div class="notes-list">${blockSubjects.map(notes => {
                 const subjectAverage = subjectScore(notes);
@@ -476,7 +718,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const signal = subjectSignal(subjectAverage, subject);
                 return `<article class="matiere-card${signal ? ` ${signal.className}` : ''}"><div class="matiere-head"><div class="matiere-title"><h3>${escapeHtml(subject)}</h3>${signal ? `<span class="matiere-signal ${signal.className}">${escapeHtml(signal.label)}</span><p class="matiere-comment">${escapeHtml(signal.comment)}</p>` : ''}<div class="matiere-breakdown"><span>CC <b>${escapeHtml(formatAverage(breakdown.continuousAverage))}</b></span><span>Partiel <b>${escapeHtml(formatAverage(breakdown.examAverage))}</b></span></div></div><div class="matiere-score"><span>Moyenne matière</span><strong>${escapeHtml(formatAverage(subjectAverage))}<small>/20</small></strong></div></div><div class="evaluations">${notes.map(note => `<div class="evaluation-row${note.value === null || note.value === undefined || note.value === '' ? ' is-empty' : ''}"><span class="evaluation-label">${escapeHtml(note.label)}${note.isPartial ? '<em>Partiel</em>' : ''}</span><strong>${escapeHtml(note.value ?? '—')}</strong></div>`).join('')}</div></article>`;
             }).join('')}</div></section>`;
-        }).join('')}${unassigned.length ? `<section class="notes-unassigned"><p class="notes-kicker">À classer</p><p>${unassigned.length} matière${unassigned.length > 1 ? 's' : ''} attend${unassigned.length > 1 ? 'ent' : ''} un nom de bloc.</p></section>` : ''}</div>`;
+        }).join('')}${classifiedSubjects.length === 0 ? '' : ''}</div>`;
 
         const select = content.querySelector('#select-note-year');
         select?.addEventListener('change', event => {
@@ -513,6 +755,17 @@ document.addEventListener('DOMContentLoaded', () => {
         };
         content.querySelectorAll('[data-close-assignments]').forEach(element => element.addEventListener('click', closeAssignments));
         content.querySelector('[data-open-assignments]')?.addEventListener('click', openAssignments);
+        const rulesModal = content.querySelector('#notes-rules-modal');
+        const closeRules = () => {
+            rulesModal?.classList.remove('is-open');
+            rulesModal?.setAttribute('aria-hidden', 'true');
+        };
+        const openRules = () => {
+            rulesModal?.classList.add('is-open');
+            rulesModal?.setAttribute('aria-hidden', 'false');
+        };
+        content.querySelectorAll('[data-close-rules]').forEach(element => element.addEventListener('click', closeRules));
+        content.querySelector('[data-open-rules]')?.addEventListener('click', openRules);
     }
 
     function setupCalendar(items) {

@@ -1,4 +1,4 @@
-# MyGES Campus
+# MyNotes
 
 Portail étudiant mobile-first pour consulter les informations MyGES/ESGI depuis une interface web installable comme PWA.
 

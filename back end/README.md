@@ -1,4 +1,4 @@
-# MyGES Campus
+# MyNotes
 
 PWA mobile-first pour consulter le planning, les notes et les absences ESGI. Le front est statique et sans build ; le proxy PHP garde le jeton MyGES en session serveur.
 

@@ -1,6 +1,6 @@
 {
-  "name": "MyGES Campus",
-  "short_name": "MyGES",
+  "name": "MyNotes",
+  "short_name": "MyNotes",
   "description": "Planning, notes et absences ESGI, même hors connexion.",
   "start_url": "./",
   "scope": "./",

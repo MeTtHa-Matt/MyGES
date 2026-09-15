@@ -43,7 +43,7 @@ function renderActiveView() {
   const data = state.activeView === 'home' ? state.data.planning || [] : state.data[state.activeView] || [];
   contentView.innerHTML = state.activeView === 'planning' ? views.planning(data, state.selectedDate) : views[state.activeView](data);
   document.querySelector('#page-title').textContent = pageTitles[state.activeView];
-  document.querySelector('#page-kicker').textContent = state.activeView === 'home' ? 'Mon espace étudiant' : 'MyGES · ESGI';
+  document.querySelector('#page-kicker').textContent = state.activeView === 'home' ? 'Mon espace étudiant' : 'MyNotes · ESGI';
   document.querySelectorAll('.nav-item').forEach((item) => item.classList.toggle('is-active', item.dataset.view === state.activeView));
 }
 

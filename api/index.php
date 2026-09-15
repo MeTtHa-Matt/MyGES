@@ -641,9 +641,12 @@ if ($resource === 'grades' && !empty($_SESSION['myges_cookie'])) {
     $payload = fetchMygesMarks((string) $_SESSION['myges_cookie']);
     if (isset($payload['__upstream_status'])) {
         $authenticationPage = str_contains((string) ($payload['__upstream_body'] ?? ''), 'Authentification');
-        respond(['error' => 'La session Notes MyGES a expiré, veuillez vous reconnecter.', 'diagnostic' => 'HTTP ' . (int) $payload['__upstream_status'] . ' sur /student/marks' . (!empty($payload['__upstream_body']) ? ' (' . $payload['__upstream_body'] . ')' : '') . '.'], $authenticationPage ? 401 : 502);
+        if ($authenticationPage || in_array((int) $payload['__upstream_status'], [401, 403], true)) {
+            if (!empty($_SESSION['myges_cookie_jar'])) @unlink((string) $_SESSION['myges_cookie_jar']);
+            unset($_SESSION['myges_cookie'], $_SESSION['myges_cookie_jar']);
+        }
     }
-    respond($payload);
+    else respond($payload);
 }
 if ($resource === 'absences' && !empty($_SESSION['myges_cookie'])) {
     $payload = fetchMygesAbsences((string) $_SESSION['myges_cookie']);
