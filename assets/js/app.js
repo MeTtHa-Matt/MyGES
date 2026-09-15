@@ -171,7 +171,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const cachedStudent = window.mygesStorage.readStudent();
         if (cachedStudent?.name) updateStudent(cachedStudent);
         try { updateStudent(await window.mygesApi.profile()); }
-        catch (error) { if (error.status === 401) { window.mygesStorage.clearSession(); window.location.href = 'login.php'; } }
+        catch (error) {
+            if (error.status === 401) toast('Session serveur expirée. Les données enregistrées restent disponibles.');
+        }
     }
 
     async function loadResource(resource, render) {
@@ -196,6 +198,7 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (error) {
             if (cached?.value?.length) return;
             if (error.status === 401 && resource !== 'grades') { window.mygesStorage.clearSession(); window.location.href = 'login.php'; return; }
+            if (error.status === 401 && resource === 'grades' && cached?.value?.length) return;
             if (error.status === 401 && resource === 'grades') {
                 const content = document.querySelector('.notes-content');
                 if (content) content.innerHTML = '<div class="etat-vide"><p>Impossible de synchroniser les notes pour le moment.</p><p>Ta session locale est conservée, réessaie dans quelques instants.</p></div>';
@@ -348,8 +351,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!content) return;
         if (!items.length) { content.innerHTML = '<div class="etat-vide"><p>Aucune note disponible pour le moment</p><img class="etat-vide-image" src="assets/img/image.png" alt="Aucun résultat"></div>'; return; }
 
-        const periodKey = item => text(item.periodKey, '') || text(item.schoolYear || item.period || item.semester || item.term, '') || String(gradeYear(item) ?? 'Période actuelle');
-        const periodLabel = item => text(item.schoolYear || item.period || item.semester || item.term, '') || 'Période actuelle';
+        const periodKey = item => text(item.periodKey, '') || text(item.period || item.semester || item.term || item.schoolYear, '') || String(gradeYear(item) ?? 'Période actuelle');
+        const periodLabel = item => text(item.period || item.semester || item.term || item.schoolYear, '') || 'Période actuelle';
         const periods = [...new Map(items.map(item => [periodKey(item), periodLabel(item)])).entries()];
         const savedPeriod = content.dataset.selectedYear ? String(content.dataset.selectedYear) : '';
         const selectedYear = periods.some(([key]) => String(key) === savedPeriod) ? savedPeriod : String(periods[0]?.[0] || 'Période actuelle');
@@ -377,14 +380,19 @@ document.addEventListener('DOMContentLoaded', () => {
         const currentLabel = periods.find(([key]) => String(key) === selectedYear)?.[1] || '';
         const currentType = parsePeriodType(currentLabel);
         const currentYear = parseAcademicYear(currentLabel);
-        const annualPeriods = periods.filter(([key, label]) => {
-            if (parsePeriodType(label) !== currentType) return false;
-            return currentYear === null || parseAcademicYear(label) === currentYear;
-        }).sort(([, firstLabel], [, secondLabel]) => parsePeriodNumber(firstLabel) - parsePeriodNumber(secondLabel));
         const expectedPeriodCount = currentType === 'semestre' ? 2 : (currentType === 'trimestre' ? 3 : 0);
-        const completeAnnualPeriods = expectedPeriodCount > 0
-            && annualPeriods.length === expectedPeriodCount
-            && annualPeriods.every(([, label], index) => parsePeriodNumber(label) === index + 1);
+        const annualGroups = new Map();
+        periods.filter(([, label]) => parsePeriodType(label) === currentType).forEach(([key, label]) => {
+            const groupKey = `${currentType}|${parseAcademicYear(label) ?? 'sans-annee'}`;
+            if (!annualGroups.has(groupKey)) annualGroups.set(groupKey, []);
+            annualGroups.get(groupKey).push([key, label]);
+        });
+        const completeAnnualGroups = [...annualGroups.values()]
+            .filter(group => expectedPeriodCount > 0 && group.length === expectedPeriodCount && group.every(([, label], index) => parsePeriodNumber(label) === index + 1))
+            .sort((first, second) => (parseAcademicYear(second[0][1]) ?? 0) - (parseAcademicYear(first[0][1]) ?? 0));
+        const selectedAnnualGroup = completeAnnualGroups.find(group => currentYear !== null && parseAcademicYear(group[0][1]) === currentYear) || completeAnnualGroups[0] || [];
+        const annualPeriods = selectedAnnualGroup.sort(([, firstLabel], [, secondLabel]) => parsePeriodNumber(firstLabel) - parsePeriodNumber(secondLabel));
+        const completeAnnualPeriods = annualPeriods.length === expectedPeriodCount;
         const periodBlockAverage = periodKeyValue => {
             const periodItems = items.filter(item => periodKey(item) === periodKeyValue);
             const periodBlocks = savedBlocksForPeriod(periodKeyValue);
@@ -692,17 +700,18 @@ document.addEventListener('DOMContentLoaded', () => {
         }));
         const annualAverage = annualBlockAverages.length
             ? annualBlockAverages.reduce((sum, block) => sum + block.average, 0) / annualBlockAverages.length
-            : annualAverageFromBlocks();
+            : annualAverageFromBlocks() ?? (completeAnnualPeriods
+                ? annualPeriods.map(([periodKeyValue]) => averageByPeriod(items.filter(item => periodKey(item) === periodKeyValue))).filter(Number.isFinite)
+                    .reduce((sum, value, _, averages) => sum + value / averages.length, 0)
+                : null);
         const juryStatus = buildJuryStatus(annualBlocks, annualAverage);
         const unassigned = subjects.filter(notes => !notes[0].block);
         const shouldOpenAssignments = unassigned.length > 0 && content.dataset.assignmentDismissed !== 'true';
         const classifiedSubjects = subjects.filter(notes => !isIgnoredBlock(normalizeBlockName(notes[0].block)) && normalizeBlockName(notes[0].block) !== '');
         const allAssigned = subjects.length > 0 && subjects.every(notes => !isIgnoredBlock(normalizeBlockName(notes[0].block)) && normalizeBlockName(notes[0].block) !== '');
         const allAnnualSubjectsAssigned = completeAnnualPeriods && annualPeriods.every(([periodKeyValue]) => {
-            const periodBlocks = savedBlocksForPeriod(periodKeyValue);
-            const periodSubjects = items.filter(item => periodKey(item) === periodKeyValue);
-            return periodSubjects.length > 0 && [...new Set(periodSubjects.map(item => text(item.subject || item.course || item.course_name || item.courseName || item.name || item.title, 'Matière')))]
-                .every(subject => !isIgnoredBlock(normalizeBlockName(periodBlocks[subject])));
+            const periodItems = items.filter(item => periodKey(item) === periodKeyValue);
+            return periodItems.length > 0 && Number.isFinite(averageByPeriod(periodItems));
         });
         const assignmentPanel = `<div class="notes-assignment-modal${shouldOpenAssignments ? ' is-open' : ''}" id="notes-assignment-modal" aria-hidden="${shouldOpenAssignments ? 'false' : 'true'}"><div class="notes-assignment-backdrop" data-close-assignments></div><section class="notes-assignments" role="dialog" aria-modal="true" aria-labelledby="notes-assignment-title"><div class="notes-assignments-head"><div><p class="notes-kicker">Organisation</p><h2 id="notes-assignment-title">Classer les matières</h2></div><button class="notes-assignment-close" type="button" data-close-assignments title="Fermer" aria-label="Fermer le classement">&times;</button></div><p class="notes-assignment-intro">Donne un nom de bloc à chaque matière. La moyenne du bloc apparaîtra ensuite dans les résultats.</p><div class="notes-assignment-list">${subjects.map(notes => {
             const subject = notes[0].subject;

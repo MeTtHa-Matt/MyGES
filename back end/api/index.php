@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 session_set_cookie_params([
     'lifetime' => 2592000,
+    'path' => '/',
     'httponly' => true,
     'secure' => (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off'),
     'samesite' => 'Lax',

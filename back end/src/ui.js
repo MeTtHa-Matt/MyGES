@@ -120,11 +120,42 @@ export function renderEventDetails(item) {
   return `<p class="eyebrow">Détail du cours</p><h2>${escapeHtml(entry.title)}</h2><div class="detail-grid"><div><span>Horaire</span><strong>${escapeHtml(entry.time)}</strong></div><div><span>Lieu</span><strong>${escapeHtml(entry.room)}</strong></div>${entry.teacher ? `<div><span>Intervenant</span><strong>${escapeHtml(entry.teacher)}</strong></div>` : ''}${entry.group ? `<div><span>Groupe</span><strong>${escapeHtml(entry.group)}</strong></div>` : ''}${entry.type ? `<div><span>Type</span><strong>${escapeHtml(entry.type)}</strong></div>` : ''}</div>${entry.description ? `<p class="detail-description">${escapeHtml(entry.description)}</p>` : ''}`;
 }
 
+function gradeNumber(item) {
+  const directValue = Number(item.value ?? item.grade ?? item.note ?? item.score);
+  if (Number.isFinite(directValue)) return directValue;
+  const evaluations = item.evaluations || item.assessments || item.notes || item.grades;
+  if (!Array.isArray(evaluations)) return null;
+  const values = evaluations.map((evaluation) => Number(typeof evaluation === 'object' ? evaluation.value ?? evaluation.grade ?? evaluation.note ?? evaluation.score : evaluation)).filter((value) => Number.isFinite(value));
+  return values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : null;
+}
+
+function periodDetails(label) {
+  const value = String(label || '');
+  const typeMatch = value.match(/trimestre/i) ? 'trimestre' : (value.match(/semestre/i) || value.match(/\bS\d+\b/i) ? 'semestre' : '');
+  const numberMatch = value.match(/(?:semestre|trimestre|S|T)\s*(\d+)/i) || value.match(/\b(\d+)\b/);
+  const yearMatch = value.match(/20\d{2}/);
+  return { type: typeMatch, number: numberMatch ? Number(numberMatch[1]) : null, year: yearMatch ? Number(yearMatch[0]) : null };
+}
+
 export function renderGrades(items = []) {
   if (!items.length) return '<div class="empty-state">Aucune note disponible pour le moment.</div>';
-  const scored = items.map((item) => Number(item.value ?? item.grade)).filter((value) => Number.isFinite(value));
+  const scored = items.map(gradeNumber).filter((value) => Number.isFinite(value));
   const average = scored.length ? (scored.reduce((sum, value) => sum + value, 0) / scored.length).toFixed(1) : '—';
-  return `<section class="grade-hero"><p class="eyebrow">Semestre en cours</p><div class="average-row"><strong>${escapeHtml(average)}</strong><span>/ 20</span></div><p class="meta">Moyenne provisoire · ${items.length} matières suivies</p></section><div class="section-heading"><div><p class="eyebrow">Résultats</p><h3>Mes matières</h3></div></div><div class="grade-list">${items.map((item) => `<article class="grade-card"><div><h3>${escapeHtml(text(item.subject || item.course || item.course_name || item.name, 'Matière'))}</h3><p class="meta">${escapeHtml(text(item.period || item.semester || item.trimester_name, 'En cours'))}</p></div><strong class="grade-value">${escapeHtml(item.value ?? item.grade ?? item.grades?.join(', ') ?? '—')}</strong></article>`).join('')}</div>`;
+  const periodLabel = (item) => text(item.period || item.semester || item.trimester_name || item.term || item.schoolYear, '');
+  const periodEntries = [...new Map(items.map((item) => [periodLabel(item), periodDetails(periodLabel(item))]).filter(([label]) => label))];
+  const selectedPeriod = periodEntries.find(([, details]) => details.type) || ['', { type: '', number: null, year: null }];
+  const expectedPeriods = selectedPeriod[1].type === 'semestre' ? 2 : (selectedPeriod[1].type === 'trimestre' ? 3 : 0);
+  const annualEntries = expectedPeriods ? periodEntries.filter(([, details]) => details.type === selectedPeriod[1].type && (selectedPeriod[1].year === null || details.year === selectedPeriod[1].year) && details.number >= 1 && details.number <= expectedPeriods) : [];
+  const completeAnnualPeriods = annualEntries.length === expectedPeriods && annualEntries.every(([, details], index) => details.number === index + 1);
+  const annualPeriodAverages = completeAnnualPeriods ? annualEntries.map(([label]) => {
+    const periodScores = items.filter((item) => periodLabel(item) === label).map(gradeNumber).filter((value) => Number.isFinite(value));
+    return periodScores.length ? periodScores.reduce((sum, value) => sum + value, 0) / periodScores.length : null;
+  }) : [];
+  const annualAverage = annualPeriodAverages.every((value) => Number.isFinite(value))
+    ? annualPeriodAverages.reduce((sum, value) => sum + value, 0) / annualPeriodAverages.length
+    : null;
+  const annualHero = Number.isFinite(annualAverage) ? `<section class="grade-hero annual-grade-hero"><p class="eyebrow">Moyenne annuelle</p><div class="average-row"><strong>${annualAverage.toFixed(1)}</strong><span>/ 20</span></div><p class="meta">${expectedPeriods} périodes prises en compte</p></section>` : '';
+  return `${annualHero}<section class="grade-hero"><p class="eyebrow">Semestre en cours</p><div class="average-row"><strong>${escapeHtml(average)}</strong><span>/ 20</span></div><p class="meta">Moyenne provisoire · ${items.length} matières suivies</p></section><div class="section-heading"><div><p class="eyebrow">Résultats</p><h3>Mes matières</h3></div></div><div class="grade-list">${items.map((item) => `<article class="grade-card"><div><h3>${escapeHtml(text(item.subject || item.course || item.course_name || item.name, 'Matière'))}</h3><p class="meta">${escapeHtml(periodLabel(item) || 'En cours')}</p></div><strong class="grade-value">${escapeHtml(item.value ?? item.grade ?? item.grades?.join(', ') ?? '—')}</strong></article>`).join('')}</div>`;
 }
 
 export function renderAbsences(items = []) {

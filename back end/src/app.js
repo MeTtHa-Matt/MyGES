@@ -168,7 +168,7 @@ window.addEventListener('online', () => setBanner('Connexion rétablie.'));
 window.addEventListener('offline', () => setBanner('Mode hors-ligne : les prochaines données viendront du cache.'));
 
 if ('serviceWorker' in navigator) {
-  const serviceWorkerUrl = new URL('../sw.js?v=9', import.meta.url);
+  const serviceWorkerUrl = new URL('../sw.js?v=10', import.meta.url);
   navigator.serviceWorker.register(serviceWorkerUrl).catch(() => {});
 }
 if (hasSession()) { showDashboard(); loadProfile(); loadView('home'); } else showLogin();
