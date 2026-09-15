@@ -130,14 +130,24 @@ document.addEventListener('DOMContentLoaded', () => {
     const unwrap = payload => {
         if (Array.isArray(payload)) return payload;
         if (!payload || typeof payload !== 'object') return [];
-        for (const key of ['data', 'result', 'events', 'items', 'courses', 'lessons', 'subjects', 'matieres', 'matières', 'planning', 'schedule']) {
+
+        for (const key of ['data', 'result', 'events', 'items', 'courses', 'lessons', 'subjects', 'matieres', 'matières', 'planning', 'schedule', 'grades', 'notes']) {
             if (Array.isArray(payload[key])) return payload[key];
             if (payload[key] && typeof payload[key] === 'object') {
                 const nestedItems = unwrap(payload[key]);
                 if (nestedItems.length) return nestedItems;
             }
         }
+
         const objectValues = Object.values(payload);
+        const allArrays = objectValues.filter(Array.isArray);
+        if (allArrays.length) return allArrays.flat();
+
+        const flattenedNested = objectValues
+            .map(value => unwrap(value))
+            .filter(items => items.length);
+        if (flattenedNested.length) return flattenedNested.flat();
+
         if (objectValues.length && objectValues.every(value => value && typeof value === 'object' && !Array.isArray(value))) return objectValues;
         return [];
     };
@@ -237,11 +247,62 @@ document.addEventListener('DOMContentLoaded', () => {
         if (items.length === 0 && empty) empty.querySelector('p').textContent = 'Aucune absence signalée';
     }
 
+    const gradeYear = item => {
+        const years = [];
+        const collect = value => {
+            if (value === null || value === undefined) return;
+            if (Array.isArray(value)) {
+                value.forEach(collect);
+                return;
+            }
+            if (typeof value === 'object') {
+                Object.keys(value).forEach(key => {
+                    const keyMatches = [...String(key).matchAll(/20\d{2}/g)].map(match => Number(match[0]));
+                    if (keyMatches.length) years.push(...keyMatches);
+                    const normalizedKey = String(key).match(/20\d{2}/g);
+                    if (normalizedKey) years.push(...normalizedKey.map(Number));
+                    collect(value[key]);
+                });
+                return;
+            }
+            if (typeof value !== 'string') return;
+            const matches = [...value.matchAll(/20\d{2}/g)].map(match => Number(match[0]));
+            if (matches.length) years.push(...matches);
+            const slashMatches = [...value.matchAll(/(20\d{2})[-/](20\d{2})/g)].flatMap(match => [Number(match[1]), Number(match[2])]);
+            if (slashMatches.length) years.push(...slashMatches);
+        };
+
+        collect(item);
+        if (!years.length) return null;
+        return Math.max(...years);
+    };
+
+    const availableGradeYears = items => {
+        const years = [...new Set(items.map(item => gradeYear(item)).filter(value => Number.isInteger(value)))].sort((a, b) => b - a);
+        return years.length ? years : [new Date().getFullYear()];
+    };
+
     function renderGrades(items) {
         const content = document.querySelector('.notes-content');
         if (!content) return;
         if (!items.length) { content.innerHTML = '<div class="etat-vide"><p>Aucune note disponible pour le moment</p><img class="etat-vide-image" src="assets/img/image.png" alt="Aucun résultat"></div>'; return; }
-        const evaluations = items.flatMap(item => {
+
+        const years = availableGradeYears(items);
+        const selectedYear = content.dataset.selectedYear ? String(content.dataset.selectedYear) : String(years[0]);
+        const filteredItems = years.length > 1
+            ? items.filter(item => String(gradeYear(item) ?? '') === selectedYear)
+            : items;
+
+        const yearSelector = years.length > 1 ? `
+            <div class="notes-controls">
+                <label class="notes-label" for="select-note-year">Année</label>
+                <select id="select-note-year" class="notes-select" aria-label="Choisir l’année des notes">
+                    ${years.map(year => `<option value="${year}" ${String(year) === selectedYear ? 'selected' : ''}>${year}</option>`).join('')}
+                </select>
+            </div>
+        ` : '';
+
+        const evaluations = filteredItems.flatMap(item => {
             const subject = text(item.subject || item.course || item.course_name || item.courseName || item.name || item.title, 'Matière');
             const rawEvaluations = item.evaluations || item.assessments || item.notes || item.grades;
             const nestedGrades = Array.isArray(rawEvaluations) && rawEvaluations.length ? rawEvaluations : [item];
@@ -255,11 +316,18 @@ document.addEventListener('DOMContentLoaded', () => {
         const values = evaluations.map(item => Number(item.value)).filter(Number.isFinite);
         const average = values.length ? (values.reduce((sum, value) => sum + value, 0) / values.length).toFixed(1) : '—';
         const subjects = [...new Map(evaluations.map(item => [item.subject, evaluations.filter(note => note.subject === item.subject)])).entries()];
-        content.innerHTML = `<section class="notes-overview"><p class="notes-kicker">Semestre en cours</p><strong>${escapeHtml(average)} <span>/ 20</span></strong><p>Moyenne générale provisoire · ${subjects.length} matière${subjects.length > 1 ? 's' : ''}</p></section><div class="notes-list">${subjects.map(([subject, notes]) => {
+        content.innerHTML = `${yearSelector}<section class="notes-overview"><p class="notes-kicker">Semestre en cours</p><strong>${escapeHtml(average)} <span>/ 20</span></strong><p>Moyenne générale provisoire · ${subjects.length} matière${subjects.length > 1 ? 's' : ''}</p></section><div class="notes-list">${subjects.map(([subject, notes]) => {
             const subjectValues = notes.map(note => Number(note.value)).filter(Number.isFinite);
             const subjectAverage = subjectValues.length ? (subjectValues.reduce((sum, value) => sum + value, 0) / subjectValues.length).toFixed(1) : '—';
             return `<article class="matiere-card"><div class="matiere-head"><h2>${escapeHtml(subject)}</h2><strong>${escapeHtml(subjectAverage)}<small>/20</small></strong></div><div class="evaluations">${notes.map(note => `<div class="evaluation-row${note.value === null || note.value === undefined || note.value === '' ? ' is-empty' : ''}"><span class="evaluation-label">${escapeHtml(note.label)}${note.isPartial ? '<em>Partiel</em>' : ''}</span><strong>${escapeHtml(note.value ?? '—')}</strong></div>`).join('')}</div></article>`;
         }).join('')}</div>`;
+
+        const select = content.querySelector('#select-note-year');
+        select?.addEventListener('change', event => {
+            const year = event.target.value;
+            content.dataset.selectedYear = year;
+            renderGrades(items);
+        });
     }
 
     function setupCalendar(items) {
@@ -298,8 +366,68 @@ document.addEventListener('DOMContentLoaded', () => {
         const link = document.createElement('a'); link.href = URL.createObjectURL(new Blob([lines.join('\r\n')], { type: 'text/calendar' })); link.download = 'emploi_du_temps.ics'; link.click();
     }
 
+    function exportPdf() {
+        const { jsPDF } = window.jspdf || {};
+        if (!jsPDF) {
+            window.print();
+            return;
+        }
+        const date = typeof DATE_AFFICHEE !== 'undefined' ? DATE_AFFICHEE : new Date().toISOString().slice(0, 10);
+        const events = (window.DONNEES_EMPLOI_DU_TEMPS && window.DONNEES_EMPLOI_DU_TEMPS[date]) || [];
+        const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
+        const pageWidth = doc.internal.pageSize.getWidth();
+        const pageHeight = doc.internal.pageSize.getHeight();
+        const margin = 36;
+        const lineHeight = 18;
+        const maxLines = Math.max(1, Math.floor((pageHeight - 120) / lineHeight));
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(18);
+        doc.text('Emploi du temps', margin, 46);
+        doc.setFontSize(11);
+        doc.text(`Jour : ${date}`, margin, 66);
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(10);
+
+        let y = 86;
+        if (!events.length) {
+            doc.text('Aucun cours prévu pour cette journée.', margin, y);
+        } else {
+            const formatted = events.map((item, index) => {
+                const entry = normalize(item);
+                const start = entry.time.split(/\s+-\s+/)[0] || 'Horaire';
+                const end = entry.time.split(/\s+-\s+/)[1] || '';
+                const room = entry.room || 'Salle à confirmer';
+                const teacher = entry.teacher || 'Intervenant à confirmer';
+                return [
+                    `${index + 1}. ${entry.title}`,
+                    `${start}${end ? ` - ${end}` : ''} • ${room}`,
+                    `${entry.type || 'Cours'} • ${teacher}`
+                ];
+            }).flat();
+
+            for (let index = 0; index < formatted.length; index += 1) {
+                const line = formatted[index];
+                const wrapped = doc.splitTextToSize(line, pageWidth - margin * 2);
+                for (const part of wrapped) {
+                    if (y > pageHeight - margin) {
+                        doc.addPage();
+                        y = margin;
+                    }
+                    doc.text(part, margin, y);
+                    y += lineHeight;
+                }
+                if (y > pageHeight - margin && index < formatted.length - 1) {
+                    doc.addPage();
+                    y = margin;
+                }
+            }
+        }
+
+        doc.save(`emploi_du_temps_${date}.pdf`);
+    }
+
     document.getElementById('btn-telecharger-ical')?.addEventListener('click', exportIcal);
-    document.getElementById('btn-imprimer-pdf')?.addEventListener('click', () => window.print());
+    document.getElementById('btn-imprimer-pdf')?.addEventListener('click', exportPdf);
     document.getElementById('btn-ouvrir-selecteur')?.addEventListener('click', () => document.getElementById('modale-jour')?.classList.add('visible'));
     document.querySelectorAll('#btn-fermer-modale-jour, #btn-fermer-modale-jour-bas').forEach(button => button.addEventListener('click', () => document.getElementById('modale-jour')?.classList.remove('visible')));
 

@@ -350,6 +350,36 @@ hr.separateur {
 .notes-content {
     padding: 16px 16px 40px;
 }
+.notes-controls {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin: 0 0 18px;
+    padding: 12px 14px;
+    border: 1px solid var(--bordure);
+    border-radius: 12px;
+    background: var(--blanc);
+    box-shadow: var(--ombre);
+}
+.notes-label {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--corail-fonce);
+    text-transform: uppercase;
+    letter-spacing: .4px;
+}
+.notes-select {
+    flex: 1;
+    max-width: 130px;
+    border: 1px solid var(--bordure);
+    border-radius: 10px;
+    padding: 8px 10px;
+    font: inherit;
+    font-size: 13px;
+    color: var(--texte);
+    background: #fff;
+}
 .notes-overview {
     margin-bottom: 18px;
     padding: 18px 20px;

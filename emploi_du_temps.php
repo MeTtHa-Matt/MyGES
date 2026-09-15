@@ -115,9 +115,10 @@ $cours_du_jour = $emploi_du_temps[$date_affichee] ?? [];
     const DONNEES_EMPLOI_DU_TEMPS = <?= json_encode($emploi_du_temps, JSON_UNESCAPED_UNICODE) ?>;
     const NOM_ETUDIANT = <?= json_encode($etudiant['nom_complet'], JSON_UNESCAPED_UNICODE) ?>;
 </script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="assets/js/cache-reset.js?v=20260914-8"></script>
 <script src="assets/js/api.js?v=20260914-9"></script>
 <script src="assets/js/storage.js?v=20260914-8"></script>
-<script src="assets/js/app.js?v=20260914-10"></script>
+<script src="assets/js/app.js?v=20260915-02"></script>
 </body>
 </html>

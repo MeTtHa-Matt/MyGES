@@ -172,8 +172,19 @@ if ($resource === 'absences' && isset($payload['__upstream_status'])) {
         $payload = $candidate;
     }
 }
+if ($resource === 'grades' && isset($payload['__upstream_status'])) {
+    foreach ([str_replace('{year}', (string) ((int) date('Y') - 1), $routes[$resource]), '/me/grades', '/me/notes', '/grades'] as $candidatePath) {
+        $candidate = upstream($candidatePath, $_SESSION['access_token'], [], true);
+        if (!isset($candidate['__upstream_status'])) { $payload = $candidate; break; }
+        $payload = $candidate;
+    }
+}
 if (isset($payload['__upstream_status'])) {
-    $message = $resource === 'planning' ? 'Le format de période du planning est refusé par MyGES.' : 'L’endpoint des absences est refusé par MyGES.';
+    $message = $resource === 'planning'
+        ? 'Le format de période du planning est refusé par MyGES.'
+        : ($resource === 'grades'
+            ? 'L’endpoint des notes est refusé par MyGES.'
+            : 'L’endpoint des absences est refusé par MyGES.');
     respond(['error' => $message, 'diagnostic' => 'HTTP 400/404 après les variantes configurées.'], 502);
 }
 respond($payload);
