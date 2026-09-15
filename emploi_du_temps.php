@@ -37,7 +37,7 @@ $cours_du_jour = $emploi_du_temps[$date_affichee] ?? [];
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="assets/img/favicon.jpeg" type="image/jpeg">
 <link rel="manifest" href="manifest.json">
 <title>Emploi du temps — Portail Étudiant</title>
 <link rel="stylesheet" href="assets/css/style.css?v=20260914-33">

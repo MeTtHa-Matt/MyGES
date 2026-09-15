@@ -3,7 +3,7 @@ const API_URL = new URL('api/index.php', document.baseURI);
 
 async function request(resource, options = {}) {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
+    const timeout = setTimeout(() => controller.abort(), options.timeout ?? REQUEST_TIMEOUT);
     try {
         const url = new URL(API_URL);
         url.searchParams.set('resource', resource);
@@ -36,5 +36,6 @@ window.mygesApi = {
     planning: () => request('planning'),
     grades: () => request('grades'),
     absences: () => request('absences'),
+    supports: () => request('supports'),
     logout: () => request('logout', { method: 'POST' })
 };

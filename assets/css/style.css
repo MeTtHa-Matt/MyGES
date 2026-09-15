@@ -346,6 +346,122 @@ hr.separateur {
     margin: 8px auto 0;
 }
 
+/* ---------- Supports de cours ---------- */
+.supports-content {
+    padding: 18px 16px 40px;
+}
+.supports-heading {
+    display: flex;
+    align-items: end;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 18px;
+}
+.supports-heading h1 {
+    margin: 0;
+    font-size: 24px;
+    line-height: 1.1;
+}
+.supports-kicker {
+    margin: 0 0 5px;
+    color: var(--corail-fonce);
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .4px;
+}
+.supports-count {
+    color: var(--texte-clair);
+    font-size: 12px;
+    white-space: nowrap;
+}
+.supports-search {
+    display: block;
+    margin-bottom: 14px;
+}
+.supports-search input {
+    width: 100%;
+    border: 1px solid var(--bordure);
+    border-radius: 12px;
+    padding: 12px 14px;
+    color: var(--texte);
+    background: var(--blanc);
+    box-shadow: var(--ombre);
+    font: inherit;
+    font-size: 14px;
+}
+.supports-search input:focus {
+    border-color: var(--corail);
+    outline: 2px solid var(--corail-clair);
+}
+.supports-list {
+    display: grid;
+    gap: 10px;
+}
+.support-card {
+    display: grid;
+    grid-template-columns: 42px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 12px;
+    padding: 13px 12px;
+    border: 1px solid var(--bordure);
+    border-radius: 12px;
+    background: var(--blanc);
+    box-shadow: var(--ombre);
+}
+.support-card-icon {
+    display: grid;
+    width: 42px;
+    height: 42px;
+    place-items: center;
+    border-radius: 10px;
+    background: var(--rose-bouton);
+    color: var(--corail-fonce);
+    font-size: 10px;
+    font-weight: 800;
+}
+.support-card-body { min-width: 0; }
+.support-card-body h2 {
+    overflow: hidden;
+    margin: 0 0 4px;
+    font-size: 14px;
+    line-height: 1.25;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.support-card-body p {
+    overflow: hidden;
+    margin: 0;
+    color: var(--texte-clair);
+    font-size: 12px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.support-download {
+    display: grid;
+    width: 36px;
+    height: 36px;
+    place-items: center;
+    border-radius: 8px;
+    background: var(--corail);
+    color: var(--blanc);
+}
+.support-download svg {
+    width: 18px;
+    height: 18px;
+    fill: none;
+    stroke: currentColor;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-width: 2;
+}
+.support-unavailable {
+    color: var(--texte-clair);
+    font-size: 10px;
+    text-align: right;
+}
+.supports-empty { padding: 34px 14px; }
+
 /* ---------- Notes ---------- */
 .notes-content {
     padding: 16px 16px 40px;
@@ -1101,7 +1217,7 @@ hr.separateur {
     height: 58px;
     border-radius: 16px;
     background: #102a43;
-    background-image: url('../img/favicon.svg');
+    background-image: url('../img/favicon.jpeg');
     background-size: cover;
     color: transparent;
     display: flex;

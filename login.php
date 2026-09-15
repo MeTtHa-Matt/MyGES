@@ -10,7 +10,7 @@ require __DIR__ . '/includes/data.php';
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="assets/img/favicon.jpeg" type="image/jpeg">
 <link rel="manifest" href="manifest.json">
 <title>Connexion — Portail Étudiant</title>
 <link rel="stylesheet" href="assets/css/style.css?v=20260914-33">
@@ -48,7 +48,7 @@ require __DIR__ . '/includes/data.php';
     <div class="toast" id="toast"></div>
 </div>
 <script src="assets/js/cache-reset.js?v=20260914-8"></script>
-<script src="assets/js/api.js?v=20260914-9"></script>
+<script src="assets/js/api.js?v=20260915-04"></script>
 <script src="assets/js/storage.js?v=20260914-8"></script>
 <script src="assets/js/app.js?v=20260914-10"></script>
 </body>

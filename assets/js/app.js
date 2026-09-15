@@ -131,7 +131,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (Array.isArray(payload)) return payload;
         if (!payload || typeof payload !== 'object') return [];
 
-        for (const key of ['data', 'result', 'events', 'items', 'courses', 'lessons', 'subjects', 'matieres', 'matières', 'planning', 'schedule', 'grades', 'notes']) {
+        for (const key of ['data', 'result', 'events', 'items', 'courses', 'lessons', 'subjects', 'matieres', 'matières', 'planning', 'schedule', 'grades', 'notes', 'supports', 'documents', 'resources', 'files']) {
             if (Array.isArray(payload[key])) return payload[key];
             if (payload[key] && typeof payload[key] === 'object') {
                 const nestedItems = unwrap(payload[key]);
@@ -222,6 +222,56 @@ document.addEventListener('DOMContentLoaded', () => {
         window.DONNEES_EMPLOI_DU_TEMPS = items.reduce((all, item) => { const key = dateKey(item); if (key) (all[key] ||= []).push(item); return all; }, {});
         setupCalendar(items);
     }
+
+    const supportTitle = item => text(item.title || item.name || item.label || item.filename || item.fileName || item.file_name || item.document, 'Support de cours');
+    const supportSubject = item => text(item.subject || item.course || item.courseName || item.course_name || item.matter || item.matiere || item.matière || item.module || item.category, 'Cours');
+    const supportType = item => text(item.type || item.mimeType || item.mime_type || item.extension, 'Document');
+    const supportDate = item => text(item.date || item.createdAt || item.created_at || item.updatedAt || item.updated_at, '');
+    const supportUrl = item => {
+        const findPrivateUrl = value => {
+            if (typeof value === 'string') {
+                if (value.includes('ges-dl.kordis.fr')) return value;
+                if (value.startsWith('/private/')) return `https://ges-dl.kordis.fr${value}`;
+                return '';
+            }
+            if (Array.isArray(value)) {
+                for (const entry of value) { const found = findPrivateUrl(entry); if (found) return found; }
+                return '';
+            }
+            if (value && typeof value === 'object') {
+                for (const entry of Object.values(value)) { const found = findPrivateUrl(entry); if (found) return found; }
+            }
+            return '';
+        };
+        return findPrivateUrl(item) || '';
+    };
+    const renderSupports = items => {
+        window.supportsData = items;
+        const list = document.getElementById('supports-list');
+        const count = document.getElementById('supports-count');
+        const search = document.getElementById('supports-search-input');
+        if (!list) return;
+        const query = (search?.value || '').trim().toLocaleLowerCase('fr');
+        const visible = items.filter(item => [supportTitle(item), supportSubject(item), supportType(item)].join(' ').toLocaleLowerCase('fr').includes(query));
+        if (count) count.textContent = `${visible.length} support${visible.length > 1 ? 's' : ''}`;
+        if (!visible.length) {
+            list.innerHTML = `<div class="etat-vide supports-empty"><p>${query ? 'Aucun support ne correspond à votre recherche.' : 'Aucun support de cours disponible.'}</p></div>`;
+            return;
+        }
+        list.innerHTML = visible.map(item => {
+            const title = escapeHtml(supportTitle(item));
+            const subject = escapeHtml(supportSubject(item));
+            const type = escapeHtml(supportType(item));
+            const date = supportDate(item);
+            const url = supportUrl(item);
+            const dateLabel = date ? ` · ${escapeHtml(date)}` : '';
+            const downloadIcon = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0 5-5m-5 5-5-5M5 21h14"/></svg>';
+            const action = url
+                ? `<a class="support-download" href="${escapeHtml(url)}" download title="Télécharger" aria-label="Télécharger ${title}">${downloadIcon}</a>`
+                : `<a class="support-download" href="https://myges.fr/student/courses-files" target="_blank" rel="noopener" title="Télécharger" aria-label="Télécharger les supports de cours">${downloadIcon}</a>`;
+            return `<article class="support-card"><div class="support-card-icon">${escapeHtml(type.slice(0, 4).toUpperCase())}</div><div class="support-card-body"><h2>${title}</h2><p>${subject}${dateLabel}</p></div>${action}</article>`;
+        }).join('');
+    };
 
     function renderHome(items) {
         const section = document.querySelector('.section-accueil');
@@ -484,6 +534,13 @@ document.addEventListener('DOMContentLoaded', () => {
         if (document.querySelector('.nav-jour')) loadResource('planning', renderPlanning);
         if (document.querySelector('.carte-resume')) loadResource('absences', renderAbsences);
         if (document.querySelector('.notes-content')) loadResource('grades', renderGrades);
+        if (document.querySelector('.supports-content') && document.querySelector('#supports-list')) {
+            loadResource('supports', renderSupports);
+            document.getElementById('supports-search-input')?.addEventListener('input', () => {
+                const supports = window.supportsData || [];
+                renderSupports(supports);
+            });
+        }
         window.addEventListener('pageshow', event => {
             if (event.persisted && document.querySelector('.nav-jour')) loadResource('planning', renderPlanning);
             if (event.persisted && document.querySelector('.section-accueil')) loadResource('planning', renderHome);

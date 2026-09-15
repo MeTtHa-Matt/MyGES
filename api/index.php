@@ -102,16 +102,27 @@ function upstream(string $path, ?string $token = null, array $query = [], bool $
     if ($raw === false) respond(['error' => 'Le service MyGES est temporairement injoignable.', 'diagnostic' => $error ?: 'Erreur réseau cURL.'], 502);
     if ($status === 401 || $status === 403) respond(['error' => 'Session MyGES expirée, veuillez vous reconnecter.'], 401);
     if ($status === 204) return [];
-    if ($retryableBadRequest && in_array($status, [400, 404], true)) return ['__upstream_status' => $status, '__upstream_body' => $raw];
-    $decoded = json_decode(ltrim($raw, "\xEF\xBB\xBF \t\r\n"), true, 512, JSON_INVALID_UTF8_SUBSTITUTE);
+    if ($retryableBadRequest && in_array($status, [400, 404, 405, 500, 502, 503], true)) return ['__upstream_status' => $status, '__upstream_body' => $raw];
+    $normalizedRaw = ltrim($raw, "\xEF\xBB\xBF \t\r\n");
+    $decoded = json_decode($normalizedRaw, true, 512, JSON_INVALID_UTF8_SUBSTITUTE);
     if (!is_array($decoded)) {
         libxml_use_internal_errors(true);
-        $xml = simplexml_load_string(ltrim($raw, "\xEF\xBB\xBF \t\r\n"));
+        $xml = simplexml_load_string($normalizedRaw);
         if ($xml !== false) $decoded = json_decode(json_encode($xml), true);
         libxml_clear_errors();
     }
-    if (!is_array($decoded)) respond(['error' => 'Réponse invalide du service MyGES.', 'diagnostic' => "HTTP {$status}"], 502);
-    if ($status < 200 || $status >= 300) respond(['error' => $decoded['message'] ?? $decoded['error'] ?? 'Service MyGES indisponible.'], 502);
+    if (!is_array($decoded)) {
+        $bodyPreview = trim(preg_replace('/\s+/', ' ', strip_tags($normalizedRaw)) ?? '');
+        $bodyPreview = function_exists('mb_substr') ? mb_substr($bodyPreview, 0, 180) : substr($bodyPreview, 0, 180);
+        respond([
+            'error' => 'Réponse invalide du service MyGES.',
+            'diagnostic' => "HTTP {$status}" . ($bodyPreview !== '' ? ": {$bodyPreview}" : ''),
+        ], 502);
+    }
+    if ($status < 200 || $status >= 300) {
+        $message = $decoded['message'] ?? $decoded['error'] ?? $decoded['faultstring'] ?? 'Service MyGES indisponible.';
+        respond(['error' => is_string($message) ? $message : 'Service MyGES indisponible.', 'diagnostic' => "Réponse MyGES HTTP {$status}"], 502);
+    }
     return $decoded['result'] ?? $decoded['data'] ?? $decoded;
 }
 
@@ -122,6 +133,7 @@ $routes = [
     'planning' => envValue('MYGES_PLANNING_PATH', '/planning'),
     'grades' => envValue('MYGES_GRADES_PATH', '/grades'),
     'absences' => envValue('MYGES_ABSENCES_PATH', '/absences'),
+    'supports' => envValue('MYGES_SUPPORTS_PATH', '/me/courses'),
 ];
 
 if ($resource === 'login' && $method === 'POST') {
@@ -184,7 +196,12 @@ if (isset($payload['__upstream_status'])) {
         ? 'Le format de période du planning est refusé par MyGES.'
         : ($resource === 'grades'
             ? 'L’endpoint des notes est refusé par MyGES.'
-            : 'L’endpoint des absences est refusé par MyGES.');
-    respond(['error' => $message, 'diagnostic' => 'HTTP 400/404 après les variantes configurées.'], 502);
+            : ($resource === 'supports'
+                ? 'L’endpoint des supports de cours est refusé par MyGES.'
+                : 'L’endpoint des absences est refusé par MyGES.'));
+    respond([
+        'error' => $message,
+        'diagnostic' => 'HTTP ' . (int) $payload['__upstream_status'] . ' après les variantes configurées.',
+    ], 502);
 }
 respond($payload);

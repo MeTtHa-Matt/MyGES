@@ -10,6 +10,6 @@
   "theme_color": "#FF6B6B",
   "lang": "fr-FR",
   "icons": [
-    { "src": "assets/img/favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+    { "src": "assets/img/favicon.jpeg", "sizes": "any", "type": "image/jpeg", "purpose": "any maskable" }
   ]
 }
