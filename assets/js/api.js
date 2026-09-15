@@ -7,6 +7,7 @@ async function request(resource, options = {}) {
     try {
         const url = new URL(API_URL);
         url.searchParams.set('resource', resource);
+        Object.entries(options.query || {}).forEach(([key, value]) => url.searchParams.set(key, value));
         url.searchParams.set('_fresh', `${Date.now()}-${Math.random().toString(36).slice(2)}`);
         const response = await fetch(url, {
             credentials: 'same-origin',
@@ -33,7 +34,7 @@ async function request(resource, options = {}) {
 window.mygesApi = {
     login: credentials => request('login', { method: 'POST', body: JSON.stringify(credentials) }),
     profile: () => request('profile'),
-    planning: () => request('planning'),
+    planning: date => request('planning', { query: date ? { date } : {} }),
     grades: () => request('grades'),
     absences: () => request('absences'),
     supports: () => request('supports'),

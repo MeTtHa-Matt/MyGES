@@ -157,15 +157,28 @@ if ($method !== 'GET' || !isset($routes[$resource])) respond(['error' => 'Ressou
 if (empty($_SESSION['access_token'])) respond(['error' => 'Session expirée, veuillez vous reconnecter.'], 401);
 $query = [];
 if ($resource === 'planning') {
-    $start = strtotime('today UTC');
-    $query = ['start' => gmdate('Y-m-d\T00:00:00.000\Z', $start), 'end' => gmdate('Y-m-d\T00:00:00.000\Z', strtotime('+30 days', $start))];
+    $requestedDate = $_GET['date'] ?? gmdate('Y-m-d');
+    $selectedDate = DateTimeImmutable::createFromFormat('!Y-m-d', (string) $requestedDate, new DateTimeZone('UTC'));
+    $dateErrors = DateTimeImmutable::getLastErrors();
+    if (!$selectedDate || ($dateErrors !== false && ($dateErrors['warning_count'] || $dateErrors['error_count']))) {
+        $selectedDate = new DateTimeImmutable('today', new DateTimeZone('UTC'));
+    }
+    $schoolYear = (int) $selectedDate->format('n') >= 9
+        ? (int) $selectedDate->format('Y')
+        : (int) $selectedDate->format('Y') - 1;
+    $start = new DateTimeImmutable($schoolYear . '-09-01 00:00:00', new DateTimeZone('UTC'));
+    $end = $start->modify('+1 year');
+    $query = [
+        'start' => $start->format('Y-m-d\T00:00:00.000\Z'),
+        'end' => $end->format('Y-m-d\T00:00:00.000\Z'),
+    ];
 }
 $path = str_replace('{year}', date('Y'), $routes[$resource]);
 $retryable = in_array($resource, ['planning', 'absences'], true);
 $payload = upstream($path, $_SESSION['access_token'], $query, $retryable);
 if ($resource === 'planning' && isset($payload['__upstream_status'])) {
-    $start = strtotime('today UTC');
-    $end = strtotime('+30 days', $start);
+    $start = isset($start) ? $start->getTimestamp() : strtotime('today UTC');
+    $end = isset($end) ? $end->getTimestamp() : strtotime('+1 year', $start);
     $variants = [
         ['start' => (string) ($start * 1000), 'end' => (string) ($end * 1000)],
         ['start' => gmdate('Y-m-d\\TH:i:s\\Z', $start), 'end' => gmdate('Y-m-d\\TH:i:s\\Z', $end)],

@@ -177,7 +177,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (cached?.value?.length) render(cached.value);
         try {
             const fetchFresh = async attempts => {
-                const value = unwrap(await window.mygesApi[resource]());
+                const value = unwrap(await window.mygesApi[resource](resource === 'planning' ? selectedDate : undefined));
                 if (resource === 'planning' && value.length === 0 && attempts > 0) {
                     await new Promise(resolve => setTimeout(resolve, 700));
                     return fetchFresh(attempts - 1);
@@ -394,7 +394,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const total = Math.ceil((offset + new Date(year, month + 1, 0).getDate()) / 7) * 7;
             for (let index = 0; index < total; index++) {
                 const date = new Date(year, month, index - offset + 1);
-                const value = date.toISOString().slice(0, 10);
+                const value = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
                 const button = document.createElement('button'); button.type = 'button'; button.className = 'jour-case'; button.textContent = date.getDate(); button.dataset.date = value;
                 if (value.slice(0, 7) !== `${year}-${String(month + 1).padStart(2, '0')}`) button.classList.add('hors-mois');
                 if (value === DATE_AFFICHEE) button.classList.add('selectionne');
