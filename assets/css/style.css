@@ -86,7 +86,7 @@ ul { list-style: none; margin: 0; padding: 0; }
     transform: translateX(-55px);
     overflow: hidden;
     pointer-events: none;
-    background: url("../img/traits jaunes.jpeg") center top / 100% auto no-repeat;
+    background: url("../img/traits jaunes.jpeg") center top / 62.5% auto no-repeat;
 }
 .header-slashes span {
     display: none;
