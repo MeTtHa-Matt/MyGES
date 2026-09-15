@@ -44,7 +44,7 @@ function icone_calendrier() {
 }
 
 function icone_pdf() {
-    return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3h7l5 5v13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M14 3v5h5"/><text x="7.3" y="17" font-size="7" fill="currentColor" stroke="none" font-family="Arial" font-weight="700">PDF</text></svg>';
+    return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 8V4h10v4"/><path d="M7 16H5a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2"/><path d="M7 16v4h10v-4"/><path d="M9 12h6"/><path d="M9 9h6"/></svg>';
 }
 
 function icone_pouvoir() {

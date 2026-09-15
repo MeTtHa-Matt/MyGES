@@ -56,20 +56,11 @@ $prochains_cours = array_slice($prochains_cours, 0, 3);
 
         <hr class="separateur">
         <div class="section-lien-tout">
-            <a href="devoirs.php" class="lien-voir-tout">Voir tout <?= icone_fleche_lien() ?></a>
+            <a href="absences.php" class="lien-voir-tout">Voir tout <?= icone_fleche_lien() ?></a>
         </div>
         <div class="section-accueil">
-            <h2 class="section-titre">Devoirs</h2>
-            <p class="etat-vide-mini">Aucun devoir pour les 7 prochains jours</p>
-        </div>
-
-        <hr class="separateur">
-        <div class="section-lien-tout">
-            <a href="assiduite.php" class="lien-voir-tout">Voir tout <?= icone_fleche_lien() ?></a>
-        </div>
-        <div class="section-accueil">
-            <h2 class="section-titre">Assiduité</h2>
-            <p class="etat-vide-mini">Aucun nouvel événement</p>
+            <h2 class="section-titre">Mes absences</h2>
+            <p class="etat-vide-mini">Aucune absence signalée</p>
         </div>
 
     </main>
