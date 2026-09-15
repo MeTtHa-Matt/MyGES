@@ -197,7 +197,7 @@ document.addEventListener('DOMContentLoaded', () => {
             render(value);
         } catch (error) {
             if (cached?.value?.length) return;
-            if (error.status === 401 && resource !== 'grades') { window.mygesStorage.clearSession(); window.location.href = 'login.php'; return; }
+            if (error.status === 401 && resource !== 'grades') { toast('La session MyGES doit être resynchronisée.'); return; }
             if (error.status === 401 && resource === 'grades' && cached?.value?.length) return;
             if (error.status === 401 && resource === 'grades') {
                 const content = document.querySelector('.notes-content');
@@ -388,9 +388,12 @@ document.addEventListener('DOMContentLoaded', () => {
             annualGroups.get(groupKey).push([key, label]);
         });
         const completeAnnualGroups = [...annualGroups.values()]
+            .map(group => [...group].sort(([, firstLabel], [, secondLabel]) => parsePeriodNumber(firstLabel) - parsePeriodNumber(secondLabel)))
             .filter(group => expectedPeriodCount > 0 && group.length === expectedPeriodCount && group.every(([, label], index) => parsePeriodNumber(label) === index + 1))
             .sort((first, second) => (parseAcademicYear(second[0][1]) ?? 0) - (parseAcademicYear(first[0][1]) ?? 0));
-        const selectedAnnualGroup = completeAnnualGroups.find(group => currentYear !== null && parseAcademicYear(group[0][1]) === currentYear) || completeAnnualGroups[0] || [];
+        const selectedAnnualGroup = currentYear !== null
+            ? completeAnnualGroups.find(group => parseAcademicYear(group[0][1]) === currentYear) || []
+            : completeAnnualGroups[0] || [];
         const annualPeriods = selectedAnnualGroup.sort(([, firstLabel], [, secondLabel]) => parsePeriodNumber(firstLabel) - parsePeriodNumber(secondLabel));
         const completeAnnualPeriods = annualPeriods.length === expectedPeriodCount;
         const periodBlockAverage = periodKeyValue => {
@@ -522,13 +525,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 const subject = text(item.subject || item.course || item.course_name || item.courseName || item.name || item.title, 'Matière');
                 const rawEvaluations = item.evaluations || item.assessments || item.notes || item.grades;
                 const nestedGrades = Array.isArray(rawEvaluations) && rawEvaluations.length ? rawEvaluations : [item];
-                return [subject, nestedGrades];
+                return [subject, { grades: nestedGrades, item }];
             })).entries()].map(([subject, rawGrades]) => {
-                const notes = rawGrades.map((grade, index) => {
+                const notes = rawGrades.grades.map((grade, index) => {
                     const value = grade && typeof grade === 'object' ? grade.value ?? grade.grade ?? grade.note ?? grade.score : grade;
                     const label = grade && typeof grade === 'object' ? text(grade.label || grade.assessment || grade.evaluation || grade.exam || grade.type || grade.name, value === null || value === undefined || value === '' ? 'Aucune évaluation' : `Évaluation ${index + 1}`) : `Évaluation ${index + 1}`;
                     const gradeSource = grade && typeof grade === 'object' ? grade : {};
-                    return { subject, value, label, block: '', number: Number(value), weight: numericWeight(gradeSource, {}), isPartial: /partiel|examen|exam|final/.test(String(label).toLowerCase()) };
+                    return { subject, value, label, block: '', number: Number(value), weight: numericWeight(gradeSource, rawGrades.item), isPartial: /partiel|examen|exam|final/.test(String(label).toLowerCase()) };
                 }).filter(note => Number.isFinite(note.number));
                 return notes;
             }).filter(notes => notes.length);
@@ -679,7 +682,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const subjects = [...new Map(evaluations.map(item => {
             const subjectNotes = evaluations.filter(note => note.subject === item.subject);
             const savedBlock = savedBlocks[item.subject];
-            subjectNotes.forEach(note => { note.block = savedBlock || ''; });
+            subjectNotes.forEach(note => { note.block = savedBlock || note.block || ''; });
             return [`${subjectNotes[0].block}\u0000${item.subject}`, subjectNotes];
         })).values()];
         const blockNumber = block => {
@@ -690,7 +693,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const blocks = [...new Map(subjects.filter(notes => !isIgnoredBlock(normalizeBlockName(notes[0].block)) && normalizeBlockName(notes[0].block) !== '').map(notes => [normalizeBlockName(notes[0].block), subjects.filter(subjectNotes => normalizeBlockName(subjectNotes[0].block) === normalizeBlockName(notes[0].block) && !isIgnoredBlock(normalizeBlockName(subjectNotes[0].block)))])).entries()]
             .sort(([first], [second]) => blockNumber(first) - blockNumber(second) || String(first).localeCompare(String(second), 'fr'));
         const overallAverage = weightedSubjectAverage(validSubjects);
-        const displayAverage = periodBlockAverage(selectedYear) ?? overallAverage;
+        const displayAverage = periodBlockAverage(selectedYear) ?? averageByPeriod(filteredItems) ?? overallAverage;
         const annualBlocks = annualBlockData();
         const annualBlockAverages = annualBlocks.map(([label, subjects]) => ({
             label,
@@ -698,12 +701,12 @@ document.addEventListener('DOMContentLoaded', () => {
             average: weightedSubjectAverage(subjects),
             scores: subjects.map(subjectNotes => subjectScore(subjectNotes)).filter(Number.isFinite)
         }));
-        const annualAverage = annualBlockAverages.length
-            ? annualBlockAverages.reduce((sum, block) => sum + block.average, 0) / annualBlockAverages.length
-            : annualAverageFromBlocks() ?? (completeAnnualPeriods
-                ? annualPeriods.map(([periodKeyValue]) => averageByPeriod(items.filter(item => periodKey(item) === periodKeyValue))).filter(Number.isFinite)
-                    .reduce((sum, value, _, averages) => sum + value / averages.length, 0)
-                : null);
+        const annualPeriodAverages = completeAnnualPeriods
+            ? annualPeriods.map(([periodKeyValue]) => periodBlockAverage(periodKeyValue) ?? averageByPeriod(items.filter(item => periodKey(item) === periodKeyValue)))
+            : [];
+        const annualAverage = annualPeriodAverages.length === expectedPeriodCount && annualPeriodAverages.every(Number.isFinite)
+            ? annualPeriodAverages.reduce((sum, value) => sum + value, 0) / annualPeriodAverages.length
+            : null;
         const juryStatus = buildJuryStatus(annualBlocks, annualAverage);
         const unassigned = subjects.filter(notes => !notes[0].block);
         const shouldOpenAssignments = unassigned.length > 0 && content.dataset.assignmentDismissed !== 'true';

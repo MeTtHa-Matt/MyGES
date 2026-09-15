@@ -27,8 +27,8 @@ $titre_page = 'Notes';
     <div class="toast" id="toast"></div>
 </div>
 <script src="assets/js/cache-reset.js?v=20260915-07"></script>
-<script src="assets/js/api.js?v=20260915-07"></script>
+<script src="assets/js/api.js?v=20260915-08"></script>
 <script src="assets/js/storage.js?v=20260915-08"></script>
-<script src="assets/js/app.js?v=20260915-11"></script>
+<script src="assets/js/app.js?v=20260915-17"></script>
 </body>
 </html>

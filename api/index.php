@@ -218,13 +218,18 @@ function fetchMygesMarks(string $cookie): array {
         'marksForm:j_idt174:periodSelect_focus' => '',
         'marksForm:j_idt174:periodSelect_input' => $period['value'],
         'marksForm:acceptFirmMarks_input' => 'on',
-            'javax.faces.ViewState' => $stateMatch[1],
+            'javax.faces.ViewState' => $viewState,
         ];
     $handle = curl_init('https://myges.fr/student/marks');
     curl_setopt_array($handle, [CURLOPT_RETURNTRANSFER => true, CURLOPT_FOLLOWLOCATION => true, CURLOPT_POST => true, CURLOPT_POSTFIELDS => http_build_query($payload), CURLOPT_HTTPHEADER => $headers, CURLOPT_CONNECTTIMEOUT => 5, CURLOPT_TIMEOUT => 15, CURLOPT_SSL_VERIFYPEER => true]);
     $response = (string) curl_exec($handle);
     $status = (int) curl_getinfo($handle, CURLINFO_HTTP_CODE);
     curl_close($handle);
+        if (preg_match('/<update[^>]+id="javax\.faces\.ViewState"[^>]*><!\[CDATA\[(.*?)\]\]><\/update>/s', $response, $viewStateMatch)) {
+            $viewState = trim($viewStateMatch[1]);
+        } elseif (preg_match('/name="javax\.faces\.ViewState"[^>]+value="([^"]+)"/', $response, $viewStateMatch)) {
+            $viewState = html_entity_decode($viewStateMatch[1], ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        }
         if ($status < 200 || $status >= 300 || !preg_match('/<table[^>]*role="grid"[^>]*>.*?<\/table>/is', $response, $tableMatch)) {
             $pageTitle = '';
             if (preg_match('/<title[^>]*>(.*?)<\/title>/is', $response, $titleMatch)) $pageTitle = trim(preg_replace('/\s+/', ' ', strip_tags($titleMatch[1])));
@@ -235,6 +240,7 @@ function fetchMygesMarks(string $cookie): array {
         $table = $dom->getElementsByTagName('table')->item(0);
         $headersByIndex = [];
         foreach ($table?->getElementsByTagName('th') ?? [] as $headerIndex => $header) $headersByIndex[$headerIndex] = trim(preg_replace('/\s+/', ' ', $header->textContent));
+        $coefficientIndex = array_search(true, array_map(static fn (string $label): bool => preg_match('/\bcoef(?:ficient)?\b/iu', $label) === 1, $headersByIndex), true);
         foreach ($table?->getElementsByTagName('tr') ?? [] as $row) {
             $cells = $row->getElementsByTagName('td');
             if ($cells->length < 2) continue;
@@ -247,7 +253,14 @@ function fetchMygesMarks(string $cookie): array {
             }
             $subject = trim(preg_replace('/\s+/', ' ', $cells->item(0)->textContent));
             if (preg_match('/^(S\d+|Semestre\s*\d+)\s*-\s*(.+)$/iu', $subject, $subjectParts)) $subject = trim($subjectParts[2]);
-            $marks[] = ['subject' => $subject, 'period' => $period['label'], 'periodKey' => $period['value'], 'schoolYear' => $period['label'], 'teacher' => trim($cells->item(1)->textContent), 'coefficient' => str_replace(',', '.', trim($cells->item(2)->textContent)), 'credits' => str_replace(',', '.', trim($cells->item(3)->textContent)), 'evaluations' => $values];
+            $coefficient = $coefficientIndex !== false && $cells->length > $coefficientIndex
+                ? trim($cells->item($coefficientIndex)->textContent)
+                : '';
+            $creditsIndex = array_search(true, array_map(static fn (string $label): bool => preg_match('/\bects\b/iu', $label) === 1, $headersByIndex), true);
+            $credits = $creditsIndex !== false && $cells->length > $creditsIndex
+                ? trim($cells->item($creditsIndex)->textContent)
+                : '';
+            $marks[] = ['subject' => $subject, 'period' => $period['label'], 'periodKey' => $period['value'], 'schoolYear' => $period['label'], 'teacher' => trim($cells->item(1)->textContent), 'coefficient' => str_replace(',', '.', $coefficient), 'credits' => str_replace(',', '.', $credits), 'evaluations' => $values];
         }
     }
     return $marks;
