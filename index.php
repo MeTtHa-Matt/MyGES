@@ -18,6 +18,7 @@ $prochains_cours = array_slice($prochains_cours, 0, 3);
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="icon" href="assets/img/favicon.jpeg" type="image/jpeg">
+<link rel="apple-touch-icon" href="assets/img/favicon.jpeg">
 <link rel="manifest" href="manifest.json">
 <title>Accueil — Portail Étudiant</title>
 <link rel="stylesheet" href="assets/css/style.css?v=20260914-33">

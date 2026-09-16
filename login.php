@@ -11,6 +11,7 @@ require __DIR__ . '/includes/data.php';
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="icon" href="assets/img/favicon.jpeg" type="image/jpeg">
+<link rel="apple-touch-icon" href="assets/img/favicon.jpeg">
 <link rel="manifest" href="manifest.json">
 <title>Connexion — Portail Étudiant</title>
 <link rel="stylesheet" href="assets/css/style.css?v=20260915-12">

@@ -978,7 +978,11 @@ document.addEventListener('DOMContentLoaded', () => {
             const loginPayload = await window.mygesApi.login({ username: login.identifiant.value, password: login.mot_de_passe.value });
             window.mygesStorage.markSession();
             if (loginPayload?.student?.name) updateStudent(loginPayload.student);
-            try { updateStudent(await window.mygesApi.profile()); } catch {}
+            try {
+                updateStudent(await window.mygesApi.profile());
+            } catch (profileError) {
+                if (profileError.status === 401) throw new Error('La session serveur n’a pas pu être confirmée. Veuillez réessayer.');
+            }
             if (document.getElementById('souvenir')?.checked && window.PasswordCredential && navigator.credentials?.store) {
                 navigator.credentials.store(new PasswordCredential({ id: login.identifiant.value, password: login.mot_de_passe.value })).catch(() => {});
             }
@@ -997,6 +1001,10 @@ document.addEventListener('DOMContentLoaded', () => {
             submit.textContent = 'Se connecter';
         }
     });
+
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('sw.js?v=2', { scope: './', updateViaCache: 'none' }).catch(() => {});
+    }
 
     const isLogin = Boolean(login);
     if (!isLogin && !window.mygesStorage.hasSession()) { window.location.href = 'login.php'; return; }

@@ -10,7 +10,7 @@ async function request(resource, options = {}) {
         Object.entries(options.query || {}).forEach(([key, value]) => url.searchParams.set(key, value));
         url.searchParams.set('_fresh', `${Date.now()}-${Math.random().toString(36).slice(2)}`);
         const response = await fetch(url, {
-            credentials: 'same-origin',
+            credentials: 'include',
             ...options,
             cache: 'no-store',
             headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },

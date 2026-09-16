@@ -5,8 +5,8 @@ session_set_cookie_params([
     'lifetime' => 2592000,
     'path' => '/',
     'httponly' => true,
-    'secure' => (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off'),
-    'samesite' => 'Lax',
+    'secure' => $secureCookie = ((!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || strtolower(trim(explode(',', (string) ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? ''), 2)[0])) === 'https' || strtolower((string) ($_SERVER['HTTP_X_FORWARDED_SSL'] ?? '')) === 'on'),
+    'samesite' => $secureCookie ? 'None' : 'Lax',
 ]);
 session_start();
 header('Content-Type: application/json; charset=utf-8');
@@ -157,6 +157,7 @@ if ($resource === 'login' && $method === 'POST') {
     $token = authorizeUser((string) $body['username'], (string) $body['password']);
     session_regenerate_id(true);
     $_SESSION['access_token'] = $token;
+    session_write_close();
     respond(['authenticated' => true, 'student' => null]);
 }
 
