@@ -176,6 +176,18 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    const hasUsableGrade = value => {
+        if (Array.isArray(value)) return value.some(hasUsableGrade);
+        if (!value || typeof value !== 'object') return false;
+        const gradeValue = value.value ?? value.grade ?? value.note ?? value.score;
+        if (gradeValue !== undefined && gradeValue !== null && gradeValue !== '') {
+            return Number.isFinite(Number(String(gradeValue).replace(',', '.')));
+        }
+        return ['evaluations', 'assessments', 'notes', 'grades'].some(key => hasUsableGrade(value[key]));
+    };
+
+    const hasUsableGrades = items => Array.isArray(items) && items.some(hasUsableGrade);
+
     async function loadResource(resource, render) {
         const selectedDate = typeof DATE_AFFICHEE !== 'undefined' ? DATE_AFFICHEE : new Date().toISOString().slice(0, 10);
         const weekStart = resource === 'planning' ? weekStartKey(selectedDate) : '';
@@ -192,6 +204,10 @@ document.addEventListener('DOMContentLoaded', () => {
             };
             const value = await fetchFresh(2);
             if (!value.length && cached?.value?.length) return;
+            if (resource === 'grades' && cached?.value?.length && hasUsableGrades(cached.value) && !hasUsableGrades(value)) {
+                render(cached.value);
+                return;
+            }
             if (resource === 'planning') window.mygesStorage.savePlanningWeek(weekStart, itemsForWeek(value, weekStart));
             else window.mygesStorage.saveResource(resource, value);
             render(value);
