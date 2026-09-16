@@ -21,7 +21,7 @@ $prochains_cours = array_slice($prochains_cours, 0, 3);
 <link rel="apple-touch-icon" href="assets/img/favicon.jpeg">
 <link rel="manifest" href="manifest.json">
 <title>Accueil — Portail Étudiant</title>
-<link rel="stylesheet" href="assets/css/style.css?v=20260914-33">
+<link rel="stylesheet" href="assets/css/style.css?v=20260916-03">
 </head>
 <body>
 <div class="app-frame">
@@ -33,7 +33,7 @@ $prochains_cours = array_slice($prochains_cours, 0, 3);
         <div class="section-lien-tout">
             <a href="emploi_du_temps.php" class="lien-voir-tout">Voir tout <?= icone_fleche_lien() ?></a>
         </div>
-        <div class="section-accueil">
+        <div class="section-accueil" id="home-planning">
             <h2 class="section-titre">3 prochains cours</h2>
             <p class="libelle-jour">Demain</p>
             <?php if (empty($prochains_cours)): ?>
@@ -56,12 +56,21 @@ $prochains_cours = array_slice($prochains_cours, 0, 3);
         </div>
 
         <hr class="separateur">
-        <div class="section-lien-tout">
-            <a href="absences.php" class="lien-voir-tout">Voir tout <?= icone_fleche_lien() ?></a>
-        </div>
-        <div class="section-accueil">
-            <h2 class="section-titre">Mes absences</h2>
+        <div class="section-accueil" id="home-absences">
+            <div class="home-section-heading">
+                <h2 class="section-titre">Mes absences</h2>
+                <a href="absences.php" class="lien-voir-tout">Voir tout <?= icone_fleche_lien() ?></a>
+            </div>
             <p class="etat-vide-mini">Aucune absence signalée</p>
+        </div>
+
+        <hr class="separateur">
+        <div class="section-accueil" id="home-averages">
+            <div class="home-section-heading">
+                <h2 class="section-titre">Mes moyennes actuelles</h2>
+                <a href="notes.php" class="lien-voir-tout">Voir tout <?= icone_fleche_lien() ?></a>
+            </div>
+            <p class="etat-vide-mini">Chargement des moyennes…</p>
         </div>
 
     </main>
@@ -77,8 +86,8 @@ $prochains_cours = array_slice($prochains_cours, 0, 3);
     const NOM_ETUDIANT = <?= json_encode($etudiant['nom_complet'], JSON_UNESCAPED_UNICODE) ?>;
 </script>
 <script src="assets/js/cache-reset.js?v=20260914-8"></script>
-<script src="assets/js/api.js?v=20260914-9"></script>
+<script src="assets/js/api.js?v=20260916-02"></script>
 <script src="assets/js/storage.js?v=20260915-08"></script>
-<script src="assets/js/app.js?v=20260915-09"></script>
+<script src="assets/js/app.js?v=20260916-03"></script>
 </body>
 </html>

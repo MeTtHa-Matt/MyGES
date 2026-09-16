@@ -18,7 +18,7 @@ $duree_totale = '00h00';
 <link rel="icon" href="assets/img/favicon.jpeg" type="image/jpeg">
 <link rel="manifest" href="manifest.json">
 <title>Absences — Portail Étudiant</title>
-<link rel="stylesheet" href="assets/css/style.css?v=20260914-33">
+<link rel="stylesheet" href="assets/css/style.css?v=20260916-04">
 </head>
 <body>
 <div class="app-frame">
@@ -46,12 +46,14 @@ $duree_totale = '00h00';
         </div>
 
         <div class="barre-filtre">
+            <label class="notes-label" for="select-absence-period">Semestre</label>
+            <select id="select-absence-period" class="notes-select" aria-label="Choisir le semestre des absences"></select>
             <button type="button" class="bouton-filtre" id="btn-ouvrir-filtre" aria-label="Filtrer"><?= icone_filtre() ?></button>
         </div>
         <hr class="separateur">
 
         <?php if ($nb_absences === 0): ?>
-            <div class="etat-vide">
+            <div class="etat-vide absence-content">
                 <p>Aucune absence signalée</p>
                 <img class="etat-vide-image" src="assets/img/image.png" alt="Aucun résultat">
             </div>
@@ -97,8 +99,8 @@ $duree_totale = '00h00';
 </div>
 
 <script src="assets/js/cache-reset.js?v=20260914-8"></script>
-<script src="assets/js/api.js?v=20260914-9"></script>
+<script src="assets/js/api.js?v=20260916-01"></script>
 <script src="assets/js/storage.js?v=20260915-08"></script>
-<script src="assets/js/app.js?v=20260915-09"></script>
+<script src="assets/js/app.js?v=20260916-04"></script>
 </body>
 </html>

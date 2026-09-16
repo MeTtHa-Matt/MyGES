@@ -268,27 +268,66 @@ function fetchMygesMarks(string $cookie): array {
 
 function fetchMygesAbsences(string $cookie): array {
     if ($cookie === '') return ['__upstream_status' => 401];
+    $headers = ['Accept: text/xml, text/html, */*;q=0.9', 'Cookie: ' . $cookie];
     $handle = curl_init('https://myges.fr/student/marks');
-    curl_setopt_array($handle, [CURLOPT_RETURNTRANSFER => true, CURLOPT_FOLLOWLOCATION => true, CURLOPT_HTTPGET => true, CURLOPT_HTTPHEADER => ['Accept: text/html', 'Cookie: ' . $cookie], CURLOPT_CONNECTTIMEOUT => 5, CURLOPT_TIMEOUT => 15, CURLOPT_SSL_VERIFYPEER => true]);
+    curl_setopt_array($handle, [CURLOPT_RETURNTRANSFER => true, CURLOPT_FOLLOWLOCATION => true, CURLOPT_HTTPGET => true, CURLOPT_HTTPHEADER => $headers, CURLOPT_CONNECTTIMEOUT => 5, CURLOPT_TIMEOUT => 15, CURLOPT_SSL_VERIFYPEER => true]);
     $page = (string) curl_exec($handle);
     $status = (int) curl_getinfo($handle, CURLINFO_HTTP_CODE);
     curl_close($handle);
     if ($status < 200 || $status >= 300) return ['__upstream_status' => $status ?: 502];
+    if (preg_match('/<title[^>]*>(.*?)<\/title>/is', $page, $titleMatch) && stripos($titleMatch[1], 'authent') !== false) return ['__upstream_status' => 401, '__upstream_body' => 'Authentification'];
     $dom = new DOMDocument();
     @$dom->loadHTML('<?xml encoding="UTF-8">' . $page);
-    foreach ($dom->getElementsByTagName('table') as $table) {
-        $headers = [];
-        foreach ($table->getElementsByTagName('th') as $header) $headers[] = trim(preg_replace('/\s+/', ' ', $header->textContent));
-        if (!in_array('Date', $headers, true) || !in_array('Justifié', $headers, true)) continue;
-        $absences = [];
-        foreach ($table->getElementsByTagName('tr') as $row) {
-            $cells = $row->getElementsByTagName('td');
-            if ($cells->length < 4) continue;
-            $absences[] = ['date' => trim(preg_replace('/\s+/', ' ', $cells->item(0)->textContent)), 'course' => trim(preg_replace('/\s+/', ' ', $cells->item(1)->textContent)), 'type' => trim(preg_replace('/\s+/', ' ', $cells->item(2)->textContent)), 'justified' => trim(preg_replace('/\s+/', ' ', $cells->item(3)->textContent)) === 'Oui'];
+    $periods = [];
+    foreach ($dom->getElementsByTagName('select') as $select) {
+        if (stripos($select->getAttribute('name') . ' ' . $select->getAttribute('id'), 'periodSelect') === false) continue;
+        foreach ($select->getElementsByTagName('option') as $option) {
+            $value = trim($option->getAttribute('value'));
+            $label = trim(preg_replace('/\s+/', ' ', $option->textContent));
+            if ($value !== '' && $label !== '') $periods[$value] = ['value' => $value, 'label' => $label];
         }
-        return $absences;
+        break;
     }
-    return [];
+    if (!$periods) return [];
+    $parseTable = static function (string $html, array $period): array {
+        $fragment = new DOMDocument();
+        @$fragment->loadHTML('<?xml encoding="UTF-8">' . $html);
+        foreach ($fragment->getElementsByTagName('table') as $table) {
+            $columns = [];
+            foreach ($table->getElementsByTagName('th') as $index => $header) $columns[$index] = mb_strtolower(trim(preg_replace('/\s+/', ' ', $header->textContent)));
+            $dateIndex = array_search('date', $columns, true);
+            $courseIndex = array_search('matière', $columns, true);
+            $typeIndex = array_search('type', $columns, true);
+            $justifiedIndex = array_search('justifié', $columns, true);
+            if ($dateIndex === false || $courseIndex === false || $typeIndex === false || $justifiedIndex === false) continue;
+            $result = [];
+            foreach ($table->getElementsByTagName('tr') as $row) {
+                $cells = $row->getElementsByTagName('td');
+                if ($cells->length <= max($dateIndex, $courseIndex, $typeIndex, $justifiedIndex)) continue;
+                $cell = static fn (int $index): string => trim(preg_replace('/\s+/', ' ', $cells->item($index)->textContent));
+                $result[] = ['date' => $cell($dateIndex), 'course' => $cell($courseIndex), 'type' => $cell($typeIndex), 'justified' => mb_strtolower($cell($justifiedIndex)) === 'oui', 'period' => $period['label'], 'periodKey' => $period['value']];
+            }
+            return $result;
+        }
+        return [];
+    };
+    $viewState = '';
+    if (preg_match('/name="javax\.faces\.ViewState"[^>]+value="([^"]+)"/', $page, $viewStateMatch)) $viewState = html_entity_decode($viewStateMatch[1], ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    $absences = [];
+    foreach (array_values($periods) as $periodIndex => $period) {
+        $periodHtml = $periodIndex === 0 ? $page : '';
+        if ($periodHtml === '' && $viewState !== '') {
+            $payload = ['javax.faces.partial.ajax' => 'true', 'javax.faces.source' => 'marksForm:j_idt174:periodSelect', 'javax.faces.partial.execute' => 'marksForm:j_idt174:periodSelect', 'javax.faces.partial.render' => 'marksForm', 'javax.faces.behavior.event' => 'valueChange', 'javax.faces.partial.event' => 'change', 'marksForm' => 'marksForm', 'marksForm:j_idt174:periodSelect_focus' => '', 'marksForm:j_idt174:periodSelect_input' => $period['value'], 'javax.faces.ViewState' => $viewState];
+            $handle = curl_init('https://myges.fr/student/marks');
+            curl_setopt_array($handle, [CURLOPT_RETURNTRANSFER => true, CURLOPT_FOLLOWLOCATION => true, CURLOPT_POST => true, CURLOPT_POSTFIELDS => http_build_query($payload), CURLOPT_HTTPHEADER => array_merge($headers, ['X-Requested-With: XMLHttpRequest', 'Faces-Request: partial/ajax', 'Content-Type: application/x-www-form-urlencoded; charset=UTF-8']), CURLOPT_CONNECTTIMEOUT => 5, CURLOPT_TIMEOUT => 15, CURLOPT_SSL_VERIFYPEER => true]);
+            $periodHtml = (string) curl_exec($handle);
+            curl_close($handle);
+        }
+        $periodAbsences = $parseTable($periodHtml, $period);
+        if (!$periodAbsences) $periodAbsences[] = ['period' => $period['label'], 'periodKey' => $period['value'], 'periodOnly' => true];
+        $absences = array_merge($absences, $periodAbsences);
+    }
+    return $absences;
 }
 
 function parseMygesDocumentLinks(string $html): array {

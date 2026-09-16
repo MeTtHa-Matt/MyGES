@@ -303,8 +303,11 @@ document.addEventListener('DOMContentLoaded', () => {
         }).join('');
     };
 
+    let absenceItems = [];
+    let absenceFilter = { start: '', end: '', type: '' };
+
     function renderHome(items) {
-        const section = document.querySelector('.section-accueil');
+        const section = document.getElementById('home-planning') || document.querySelector('.section-accueil');
         if (!section) return;
         const now = new Date();
         const upcoming = items.filter(item => {
@@ -316,15 +319,83 @@ document.addEventListener('DOMContentLoaded', () => {
         window.DONNEES_EMPLOI_DU_TEMPS = items.reduce((all, item) => { const key = dateKey(item); if (key) (all[key] ||= []).push(item); return all; }, {});
     }
 
+    const absenceDateKey = item => dateKey(item) || (() => {
+        const value = text(item.date || item.day, '');
+        const match = value.match(/(\d{1,2})[/-](\d{1,2})[/-](\d{4})/);
+        return match ? `${match[3]}-${match[2].padStart(2, '0')}-${match[1].padStart(2, '0')}` : '';
+    })();
+
+    function renderHomeAbsences(items) {
+        const section = document.getElementById('home-absences');
+        if (!section) return;
+        const recent = items.filter(item => !item.periodOnly).sort((first, second) => (absenceDateKey(second) || '').localeCompare(absenceDateKey(first) || '')).slice(0, 3);
+        section.innerHTML = `<div class="home-section-heading"><h2 class="section-titre">Mes absences</h2><a href="absences.php" class="lien-voir-tout">Voir tout <span aria-hidden="true">→</span></a></div>${recent.length ? `<div class="absence-list home-absence-list">${recent.map(item => { const status = item.justified ? 'Justifiée' : 'À justifier'; return `<article class="absence-card"><div class="home-absence-main"><h3>${escapeHtml(courseName(item))}</h3><p class="meta">${escapeHtml(text(item.date || item.day, 'Date inconnue'))} · ${escapeHtml(text(item.type || item.status || status))}</p></div><span class="home-absence-status ${item.justified ? 'is-justified' : 'is-pending'}">${status}</span></article>`; }).join('')}</div>` : '<p class="etat-vide-mini">Aucune absence signalée</p>'}`;
+    }
+
+    function renderHomeAverages(items) {
+        const section = document.getElementById('home-averages');
+        if (!section) return;
+        if (!items.length) { section.innerHTML = '<div class="home-section-heading"><h2 class="section-titre">Mes moyennes actuelles</h2><a href="notes.php" class="lien-voir-tout">Voir tout <span aria-hidden="true">→</span></a></div><p class="etat-vide-mini">Aucune moyenne disponible</p>'; return; }
+        const periodLabel = item => text(item.period || item.semester || item.term || item.schoolYear, '') || 'Semestre actuel';
+        const periods = [...new Map(items.map(item => [text(item.periodKey, '') || periodLabel(item), periodLabel(item)]))];
+        const currentKey = periods[0]?.[0];
+        const currentItems = items.filter(item => (text(item.periodKey, '') || periodLabel(item)) === currentKey);
+        const valueOf = grade => Number(grade && typeof grade === 'object' ? grade.value ?? grade.grade ?? grade.note ?? grade.score : grade);
+        const blockOf = item => {
+            const subject = text(item.subject || item.course || item.course_name || item.courseName || item.name || item.title, 'Matière');
+            let saved = {};
+            try { saved = JSON.parse(localStorage.getItem(`myges-note-blocks-${currentKey}`) || '{}'); } catch {}
+            return text(saved[subject] || item.block || item.bloc || item.blockName || item.block_name || item.unit || item.ue, '');
+        };
+        const groups = new Map();
+        currentItems.forEach(item => {
+            const block = blockOf(item);
+            if (!block || /^(0|zero)$/i.test(block)) return;
+            const raw = item.evaluations || item.assessments || item.notes || item.grades;
+            const values = (Array.isArray(raw) && raw.length ? raw : [item]).map(valueOf).filter(Number.isFinite);
+            if (!values.length) return;
+            if (!groups.has(block)) groups.set(block, []);
+            groups.get(block).push(...values);
+        });
+        const blocks = [...groups.entries()].slice(0, 4);
+        section.innerHTML = `<div class="home-section-heading"><h2 class="section-titre">Mes moyennes actuelles</h2><a href="notes.php" class="lien-voir-tout">Voir tout <span aria-hidden="true">→</span></a></div><p class="home-average-period">${escapeHtml(periods.find(([key]) => key === currentKey)?.[1] || 'Semestre actuel')}</p>${blocks.length ? `<div class="home-average-grid">${blocks.map(([block, values]) => { const average = values.reduce((sum, value) => sum + value, 0) / values.length; return `<article class="home-average-card"><span>${escapeHtml(block)}</span><strong>${average.toFixed(1)}<small>/20</small></strong></article>`; }).join('')}</div>` : '<p class="etat-vide-mini">Classe tes matières par bloc dans la page Notes pour afficher les moyennes.</p>'}`;
+    }
+
     function renderAbsences(items) {
         const summary = document.querySelector('.carte-resume');
         if (!summary) return;
-        const justified = items.filter(item => item.justified || String(item.status).toLowerCase().includes('just')).length;
-        summary.querySelector('.titre-nombre').textContent = `Absences ${items.length}`;
-        summary.querySelector('.sous-titre').textContent = `À justifier : ${items.length - justified}`;
-        const empty = document.querySelector('.etat-vide');
-        if (empty && items.length) empty.innerHTML = `<div class="absence-list">${items.map(item => `<article class="absence-card"><h3>${escapeHtml(courseName(item))}</h3><p class="meta">${escapeHtml(text(item.date || item.day, 'Date inconnue'))} · ${escapeHtml(text(item.status || (item.justified ? 'Justifiée' : 'À justifier')))}</p></article>`).join('')}</div>`;
-        if (items.length === 0 && empty) empty.querySelector('p').textContent = 'Aucune absence signalée';
+        const content = document.querySelector('.absence-content');
+        if (!content) return;
+        const periodKey = item => text(item.periodKey, '') || text(item.period || item.semester || item.schoolYear, '') || 'current';
+        const periodLabel = item => text(item.period || item.semester || item.schoolYear, '') || 'Semestre actuel';
+        const periods = [...new Map(items.map(item => [periodKey(item), periodLabel(item)]))];
+        const savedPeriod = content.dataset.selectedPeriod || localStorage.getItem('myges-absence-period') || '';
+        const selectedPeriod = periods.some(([key]) => String(key) === savedPeriod) ? savedPeriod : String(periods[0]?.[0] || 'current');
+        absenceItems = items;
+        const selectedItems = items.filter(item => periodKey(item) === selectedPeriod && !item.periodOnly).filter(item => {
+            const key = absenceDateKey(item);
+            const type = text(item.type || item.status || (item.justified ? 'justifiee' : 'non_justifiee'), '').toLowerCase();
+            return (!absenceFilter.start || key >= absenceFilter.start) && (!absenceFilter.end || key <= absenceFilter.end) && (!absenceFilter.type || (absenceFilter.type === 'justifiee' ? item.justified : absenceFilter.type === 'retard' ? type.includes('retard') : !item.justified));
+        });
+        const justified = selectedItems.filter(item => item.justified || String(item.status || item.justified).toLowerCase().includes('just')).length;
+        summary.querySelector('.titre-nombre').textContent = `Absences ${selectedItems.length}`;
+        summary.querySelector('.sous-titre').textContent = `À justifier : ${selectedItems.length - justified}`;
+        const details = document.getElementById('details-resume');
+        if (details) details.innerHTML = `<p>Récapitulatif du semestre sélectionné :</p><ul><li>Absences justifiées : ${justified}</li><li>Absences non justifiées : ${selectedItems.length - justified}</li><li>Retards : ${selectedItems.filter(item => text(item.type || item.status, '').toLowerCase().includes('retard')).length}</li></ul>`;
+        const select = document.getElementById('select-absence-period');
+        if (select) {
+            select.innerHTML = periods.map(([key, label]) => `<option value="${escapeHtml(key)}" ${String(key) === selectedPeriod ? 'selected' : ''}>${escapeHtml(label)}</option>`).join('');
+            select.onchange = event => {
+                content.dataset.selectedPeriod = event.target.value;
+                localStorage.setItem('myges-absence-period', event.target.value);
+                renderAbsences(items);
+            };
+        }
+        const filterButton = document.getElementById('btn-ouvrir-filtre');
+        filterButton?.classList.toggle('is-active', Boolean(absenceFilter.start || absenceFilter.end || absenceFilter.type));
+        content.innerHTML = selectedItems.length
+            ? `<div class="absence-list">${selectedItems.map(item => { const status = item.justified ? 'Justifiée' : 'À justifier'; const type = text(item.type || item.status, 'Absence'); return `<article class="absence-card"><div class="absence-date"><strong>${escapeHtml(text(item.date || item.day, 'Date inconnue'))}</strong><span>${escapeHtml(type)}</span></div><div class="absence-card-main"><h3>${escapeHtml(courseName(item))}</h3></div><span class="absence-status ${item.justified ? 'is-justified' : 'is-pending'}">${status}</span></article>`; }).join('')}</div>`
+            : '<p>Aucune absence signalée pour ce semestre</p><img class="etat-vide-image" src="assets/img/image.png" alt="Aucun résultat">';
     }
 
     const gradeYear = item => {
@@ -881,6 +952,26 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('btn-imprimer-pdf')?.addEventListener('click', exportPdf);
     document.getElementById('btn-ouvrir-selecteur')?.addEventListener('click', () => document.getElementById('modale-jour')?.classList.add('visible'));
     document.querySelectorAll('#btn-fermer-modale-jour, #btn-fermer-modale-jour-bas').forEach(button => button.addEventListener('click', () => document.getElementById('modale-jour')?.classList.remove('visible')));
+    document.getElementById('btn-toggle-resume')?.addEventListener('click', event => {
+        const details = document.getElementById('details-resume');
+        details?.classList.toggle('visible');
+        event.currentTarget.classList.toggle('ouvert');
+    });
+    const absenceModal = document.getElementById('modale-filtre');
+    document.getElementById('btn-ouvrir-filtre')?.addEventListener('click', () => absenceModal?.classList.add('visible'));
+    document.getElementById('btn-fermer-filtre')?.addEventListener('click', () => absenceModal?.classList.remove('visible'));
+    document.getElementById('form-filtre')?.addEventListener('submit', event => {
+        event.preventDefault();
+        const form = new FormData(event.currentTarget);
+        absenceFilter = { start: String(form.get('date_debut') || ''), end: String(form.get('date_fin') || ''), type: String(form.get('type') || '') };
+        absenceModal?.classList.remove('visible');
+        renderAbsences(absenceItems);
+    });
+    document.getElementById('btn-reinitialiser-filtre')?.addEventListener('click', () => {
+        document.getElementById('form-filtre')?.reset();
+        absenceFilter = { start: '', end: '', type: '' };
+        renderAbsences(absenceItems);
+    });
 
     const logoutModal = document.getElementById('modale-deconnexion');
     const closeLogoutModal = () => {
@@ -997,6 +1088,8 @@ document.addEventListener('DOMContentLoaded', () => {
         loadProfile();
         if (document.querySelector('.page-login')) return;
         if (document.querySelector('.section-accueil')) loadResource('planning', renderHome);
+        if (document.getElementById('home-absences')) loadResource('absences', renderHomeAbsences);
+        if (document.getElementById('home-averages')) loadResource('grades', renderHomeAverages);
         if (document.querySelector('.nav-jour')) loadResource('planning', renderPlanning);
         if (document.querySelector('.carte-resume')) loadResource('absences', renderAbsences);
         if (document.querySelector('.notes-content')) loadResource('grades', renderGrades);
