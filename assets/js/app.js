@@ -1058,15 +1058,16 @@ document.addEventListener('DOMContentLoaded', () => {
         submit.textContent = 'Vérification...';
         if (error) error.hidden = true;
         try {
+            const rememberMe = Boolean(document.getElementById('souvenir')?.checked);
             const loginPayload = await window.mygesApi.login({ username: login.identifiant.value, password: login.mot_de_passe.value });
-            window.mygesStorage.markSession();
+            window.mygesStorage.markSession(rememberMe);
             if (loginPayload?.student?.name) updateStudent(loginPayload.student);
             try {
                 updateStudent(await window.mygesApi.profile());
             } catch (profileError) {
                 if (profileError.status === 401) throw new Error('La session serveur n’a pas pu être confirmée. Veuillez réessayer.');
             }
-            if (document.getElementById('souvenir')?.checked && window.PasswordCredential && navigator.credentials?.store) {
+            if (rememberMe && window.PasswordCredential && navigator.credentials?.store) {
                 navigator.credentials.store(new PasswordCredential({ id: login.identifiant.value, password: login.mot_de_passe.value })).catch(() => {});
             }
             loginPage?.classList.remove('connexion-verification');

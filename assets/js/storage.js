@@ -39,11 +39,18 @@ window.mygesStorage = {
     },
     clearSession() {
         localStorage.removeItem('myges-authenticated');
+        sessionStorage.removeItem('myges-authenticated');
     },
     hasSession() {
-        return localStorage.getItem('myges-authenticated') === 'true';
+        return localStorage.getItem('myges-authenticated') === 'true' || sessionStorage.getItem('myges-authenticated') === 'true';
     },
-    markSession() {
-        localStorage.setItem('myges-authenticated', 'true');
+    markSession(remember = false) {
+        if (remember) {
+            localStorage.setItem('myges-authenticated', 'true');
+            sessionStorage.setItem('myges-authenticated', 'true');
+            return;
+        }
+        localStorage.removeItem('myges-authenticated');
+        sessionStorage.setItem('myges-authenticated', 'true');
     }
 };
