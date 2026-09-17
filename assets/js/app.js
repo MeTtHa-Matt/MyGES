@@ -113,6 +113,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const courseColors = ['#E85555', '#E0B84C', '#4C8FE0', '#8E5CE0', '#4CA6E0'];
     const courseColor = (item, index) => item.color || item.colour || courseColors[index % courseColors.length];
     const normalize = item => ({ title: courseName(item), time: time(item), room: room(item), teacher: text(item.teacher || item.teacherName || item.professor || item.instructor), type: text(item.type || item.courseType || item.kind), date: dateKey(item) });
+    const planningEventKey = item => {
+        const id = nested(item, ['id', 'eventId', 'event_id', 'reservationId', 'reservation_id', 'uid']);
+        return String(id || `${dateKey(item)}|${courseName(item)}|${text(item.teacher || item.teacherName || item.professor || item.instructor)}`).toLowerCase();
+    };
     const eventMoment = (item, end = false) => {
         const value = nested(item, end
             ? ['endTime', 'end_time', 'endAt', 'end_at', 'endDateTime', 'end_datetime', 'endDate', 'end_date', 'dateEnd', 'date_fin', 'finishTime', 'finish_time', 'ending', 'to', 'end', 'hourEnd', 'endHour', 'end_hour', 'heureFin', 'heure_fin']
@@ -208,7 +212,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 render(cached.value);
                 return;
             }
-            if (resource === 'planning') window.mygesStorage.savePlanningWeek(weekStart, itemsForWeek(value, weekStart));
+            if (resource === 'planning') {
+                const weekItems = itemsForWeek(value, weekStart);
+                renderPlanningChanges(cached?.value || [], weekItems);
+                window.mygesStorage.savePlanningWeek(weekStart, weekItems);
+            }
             else window.mygesStorage.saveResource(resource, value);
             render(value);
         } catch (error) {
@@ -251,6 +259,25 @@ document.addEventListener('DOMContentLoaded', () => {
         schedule?.insertAdjacentHTML('afterend', rows || '<div class="etat-vide planning-empty"><p>Pas de cours ce jour</p><img class="etat-vide-image" src="assets/img/image.png" alt="Aucun cours ce jour"></div>');
         window.DONNEES_EMPLOI_DU_TEMPS = items.reduce((all, item) => { const key = dateKey(item); if (key) (all[key] ||= []).push(item); return all; }, {});
         setupCalendar(items);
+    }
+
+    function renderPlanningChanges(previousItems, nextItems) {
+        const alert = document.getElementById('planning-changes');
+        if (!alert || !previousItems?.length) return;
+        const previous = new Map(previousItems.map(item => [planningEventKey(item), normalize(item)]));
+        const changes = nextItems.map(item => {
+            const current = normalize(item);
+            const old = previous.get(planningEventKey(item));
+            if (!old) return null;
+            const details = [];
+            if (old.time !== current.time) details.push(`horaire : ${old.time} → ${current.time}`);
+            if (old.room !== current.room) details.push(`salle : ${old.room} → ${current.room}`);
+            return details.length ? { title: current.title, details } : null;
+        }).filter(Boolean).slice(0, 3);
+        alert.hidden = changes.length === 0;
+        alert.innerHTML = changes.length
+            ? `<strong>Planning modifié</strong><span>${changes.map(change => `${escapeHtml(change.title)} — ${escapeHtml(change.details.join(', '))}`).join('<br>')}</span>`
+            : '';
     }
 
     const supportTitle = item => text(item.title || item.name || item.label || item.filename || item.fileName || item.file_name || item.document, 'Support de cours');
@@ -396,6 +423,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!summary) return;
         const content = document.querySelector('.absence-content');
         if (!content) return;
+        const isLate = item => String(item.category || item.type || item.status || '').toLowerCase().includes('retard');
+        const justificationLabel = item => text(item.justificationStatus, '') || (item.justified ? 'Justifié' : 'À justifier');
         const periodKey = item => text(item.periodKey, '') || text(item.period || item.semester || item.schoolYear, '') || 'current';
         const periodLabel = item => text(item.period || item.semester || item.schoolYear, '') || 'Semestre actuel';
         const periods = [...new Map(items.map(item => [periodKey(item), periodLabel(item)]))];
@@ -407,11 +436,24 @@ document.addEventListener('DOMContentLoaded', () => {
             const type = text(item.type || item.status || (item.justified ? 'justifiee' : 'non_justifiee'), '').toLowerCase();
             return (!absenceFilter.start || key >= absenceFilter.start) && (!absenceFilter.end || key <= absenceFilter.end) && (!absenceFilter.type || (absenceFilter.type === 'justifiee' ? item.justified : absenceFilter.type === 'retard' ? type.includes('retard') : !item.justified));
         });
-        const justified = selectedItems.filter(item => item.justified || String(item.status || item.justified).toLowerCase().includes('just')).length;
-        summary.querySelector('.titre-nombre').textContent = `Absences ${selectedItems.length}`;
-        summary.querySelector('.sous-titre').textContent = `À justifier : ${selectedItems.length - justified}`;
+        const absences = selectedItems.filter(item => !isLate(item));
+        const late = selectedItems.filter(isLate);
+        const justified = absences.filter(item => item.justified || /justifi/i.test(justificationLabel(item))).length;
+        const unexcused = absences.length - justified;
+        summary.querySelector('.titre-nombre').textContent = `Absences ${absences.length} · Retards ${late.length}`;
+        summary.querySelector('.sous-titre').textContent = `À justifier : ${unexcused}`;
         const details = document.getElementById('details-resume');
-        if (details) details.innerHTML = `<p>Récapitulatif du semestre sélectionné :</p><ul><li>Absences justifiées : ${justified}</li><li>Absences non justifiées : ${selectedItems.length - justified}</li><li>Retards : ${selectedItems.filter(item => text(item.type || item.status, '').toLowerCase().includes('retard')).length}</li></ul>`;
+        if (details) details.innerHTML = `<p>Récapitulatif du semestre sélectionné :</p><ul><li>Absences justifiées : ${justified}</li><li>Absences non justifiées : ${unexcused}</li><li>Retards : ${late.length}</li></ul>`;
+        const threshold = document.getElementById('absence-threshold');
+        if (threshold) {
+            const thresholdLimit = 3;
+            const thresholdExceeded = unexcused >= thresholdLimit;
+            threshold.hidden = !thresholdExceeded;
+            threshold.className = `absence-threshold ${thresholdExceeded ? 'is-warning' : ''}`;
+            threshold.innerHTML = thresholdExceeded
+                ? `<strong>Seuil d’absences dépassé</strong><span>${unexcused} absence${unexcused > 1 ? 's' : ''} non justifiée${unexcused > 1 ? 's' : ''} sur cette période. Pense à transmettre tes justificatifs.</span>`
+                : '';
+        }
         const select = document.getElementById('select-absence-period');
         if (select) {
             select.innerHTML = periods.map(([key, label]) => `<option value="${escapeHtml(key)}" ${String(key) === selectedPeriod ? 'selected' : ''}>${escapeHtml(label)}</option>`).join('');
@@ -424,7 +466,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const filterButton = document.getElementById('btn-ouvrir-filtre');
         filterButton?.classList.toggle('is-active', Boolean(absenceFilter.start || absenceFilter.end || absenceFilter.type));
         content.innerHTML = selectedItems.length
-            ? `<div class="absence-list">${selectedItems.map(item => { const status = item.justified ? 'Justifiée' : 'À justifier'; const type = text(item.type || item.status, 'Absence'); return `<article class="absence-card"><div class="absence-date"><strong>${escapeHtml(text(item.date || item.day, 'Date inconnue'))}</strong><span>${escapeHtml(type)}</span></div><div class="absence-card-main"><h3>${escapeHtml(courseName(item))}</h3></div><span class="absence-status ${item.justified ? 'is-justified' : 'is-pending'}">${status}</span></article>`; }).join('')}</div>`
+            ? `<div class="absence-groups"><section class="absence-group"><h2>Absences <span>${absences.length}</span></h2>${absences.length ? `<div class="absence-list">${absences.map(item => { const status = justificationLabel(item); const statusClass = item.justified ? 'is-justified' : 'is-pending'; return `<article class="absence-card"><div class="absence-date"><strong>${escapeHtml(text(item.date || item.day, 'Date inconnue'))}</strong><span>Absence</span></div><div class="absence-card-main"><h3>${escapeHtml(courseName(item))}</h3><small>Justificatif : ${escapeHtml(status)}</small></div><span class="absence-status ${statusClass}">${escapeHtml(status)}</span></article>`; }).join('')}</div>` : '<p class="etat-vide-mini">Aucune absence sur cette période.</p>'}</section><section class="absence-group"><h2>Retards <span>${late.length}</span></h2>${late.length ? `<div class="absence-list">${late.map(item => { const status = justificationLabel(item); const statusClass = item.justified ? 'is-justified' : 'is-pending'; return `<article class="absence-card absence-card-late"><div class="absence-date"><strong>${escapeHtml(text(item.date || item.day, 'Date inconnue'))}</strong><span>Retard</span></div><div class="absence-card-main"><h3>${escapeHtml(courseName(item))}</h3><small>Justificatif : ${escapeHtml(status)}</small></div><span class="absence-status ${statusClass}">${escapeHtml(status)}</span></article>`; }).join('')}</div>` : '<p class="etat-vide-mini">Aucun retard sur cette période.</p>'}</section></div>`
             : '<p>Aucune absence signalée pour ce semestre</p><img class="etat-vide-image" src="assets/img/image.png" alt="Aucun résultat">';
     }
 
@@ -912,8 +954,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function exportIcal() {
         const data = window.DONNEES_EMPLOI_DU_TEMPS || {};
-        const lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//MyGES//FR'];
-        Object.entries(data).forEach(([date, events]) => events.forEach(item => { const entry = normalize(item); lines.push('BEGIN:VEVENT', `DTSTART;VALUE=DATE:${date.replace(/-/g, '')}`, `SUMMARY:${entry.title}`, `LOCATION:${entry.room}`, `DESCRIPTION:${entry.teacher}`, 'END:VEVENT'); }));
+        const escapeIcs = value => String(value ?? '').replace(/\\/g, '\\\\').replace(/([;,])/g, '\\$1').replace(/\r?\n/g, '\\n');
+        const icsDate = date => `${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, '0')}${String(date.getDate()).padStart(2, '0')}T${String(date.getHours()).padStart(2, '0')}${String(date.getMinutes()).padStart(2, '0')}${String(date.getSeconds()).padStart(2, '0')}`;
+        const lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//MyGES//FR', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH', 'X-WR-CALNAME:Planning MyGES', 'X-WR-TIMEZONE:Europe/Paris'];
+        Object.entries(data).forEach(([date, events]) => events.forEach(item => {
+            const entry = normalize(item);
+            const start = eventMoment(item) || new Date(`${date}T08:00:00`);
+            let end = /\s+-\s+/.test(entry.time) ? eventMoment(item, true) : null;
+            if (!end || end <= start) end = new Date(start.getTime() + 90 * 60000);
+            const uid = `${escapeIcs(planningEventKey(item))}@myges.local`;
+            const description = [entry.type || 'Cours', entry.teacher ? `Professeur : ${entry.teacher}` : '', entry.room ? `Salle : ${entry.room}` : ''].filter(Boolean).join('\\n');
+            lines.push('BEGIN:VEVENT', `UID:${uid}`, `DTSTAMP:${icsDate(new Date())}`, `DTSTART;TZID=Europe/Paris:${icsDate(start)}`, `DTEND;TZID=Europe/Paris:${icsDate(end)}`, `SUMMARY:${escapeIcs(entry.title)}`, `LOCATION:${escapeIcs(entry.room)}`, `DESCRIPTION:${escapeIcs(description)}`, 'END:VEVENT');
+        }));
         lines.push('END:VCALENDAR');
         const link = document.createElement('a'); link.href = URL.createObjectURL(new Blob([lines.join('\r\n')], { type: 'text/calendar' })); link.download = 'emploi_du_temps.ics'; link.click();
     }

@@ -18,7 +18,7 @@ $duree_totale = '00h00';
 <link rel="icon" href="assets/img/favicon.jpeg" type="image/jpeg">
 <link rel="manifest" href="manifest.json">
 <title>Absences — Portail Étudiant</title>
-<link rel="stylesheet" href="assets/css/style.css?v=20260916-04">
+<link rel="stylesheet" href="assets/css/style.css?v=20260917-14">
 </head>
 <body>
 <div class="app-frame">
@@ -30,20 +30,22 @@ $duree_totale = '00h00';
         <div class="carte-resume">
             <span class="barre-icone"><?= icone_liste() ?></span>
             <div class="carte-resume-texte">
-                <div class="titre-nombre">Absences <?= $nb_absences ?></div>
-                <div class="sous-titre">À justifier : 0 (<?= $duree_totale ?>)</div>
+                <div class="titre-nombre">Absences et retards</div>
+                <div class="sous-titre">Synchronisation MyGES…</div>
             </div>
             <button type="button" class="chevron-toggle" id="btn-toggle-resume" aria-label="Détails"><?= icone_chevron_bas() ?></button>
         </div>
 
         <div class="details-resume" id="details-resume">
-            <p>Récapitulatif de l'année scolaire en cours :</p>
+            <p>Récapitulatif de la période sélectionnée :</p>
             <ul>
                 <li>Absences justifiées : 0</li>
                 <li>Absences non justifiées : 0</li>
                 <li>Retards : 0</li>
             </ul>
         </div>
+
+        <div class="absence-threshold" id="absence-threshold" hidden aria-live="polite"></div>
 
         <div class="barre-filtre">
             <label class="notes-label" for="select-absence-period">Semestre</label>
@@ -99,8 +101,8 @@ $duree_totale = '00h00';
 </div>
 
 <script src="assets/js/cache-reset.js?v=20260914-8"></script>
-<script src="assets/js/api.js?v=20260916-01"></script>
+<script src="assets/js/api.js?v=20260917-06"></script>
 <script src="assets/js/storage.js?v=20260915-08"></script>
-<script src="assets/js/app.js?v=20260916-04"></script>
+<script src="assets/js/app.js?v=20260917-06"></script>
 </body>
 </html>

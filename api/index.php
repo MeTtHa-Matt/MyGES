@@ -806,7 +806,19 @@ function fetchMygesAbsences(string $cookie): array {
                 $cells = $row->getElementsByTagName('td');
                 if ($cells->length <= max($dateIndex, $courseIndex, $typeIndex, $justifiedIndex)) continue;
                 $cell = static fn (int $index): string => trim(preg_replace('/\s+/', ' ', $cells->item($index)->textContent));
-                $result[] = ['date' => $cell($dateIndex), 'course' => $cell($courseIndex), 'type' => $cell($typeIndex), 'justified' => mb_strtolower($cell($justifiedIndex)) === 'oui', 'period' => $period['label'], 'periodKey' => $period['value']];
+                $type = $cell($typeIndex);
+                $justification = $cell($justifiedIndex);
+                $isJustified = mb_strtolower($justification) === 'oui';
+                $result[] = [
+                    'date' => $cell($dateIndex),
+                    'course' => $cell($courseIndex),
+                    'type' => $type,
+                    'category' => preg_match('/retard/i', $type) ? 'retard' : 'absence',
+                    'justified' => $isJustified,
+                    'justificationStatus' => $isJustified ? 'Justifié' : 'À justifier',
+                    'period' => $period['label'],
+                    'periodKey' => $period['value'],
+                ];
             }
             return $result;
         }
@@ -1228,16 +1240,22 @@ if ($resource === 'classes') {
 $query = [];
 if ($resource === 'planning') {
     $requestedDate = $_GET['date'] ?? gmdate('Y-m-d');
+    $scope = ($_GET['scope'] ?? 'week') === 'year' ? 'year' : 'week';
     $selectedDate = DateTimeImmutable::createFromFormat('!Y-m-d', (string) $requestedDate, new DateTimeZone('UTC'));
     $dateErrors = DateTimeImmutable::getLastErrors();
     if (!$selectedDate || ($dateErrors !== false && ($dateErrors['warning_count'] || $dateErrors['error_count']))) {
         $selectedDate = new DateTimeImmutable('today', new DateTimeZone('UTC'));
     }
-    $schoolYear = (int) $selectedDate->format('n') >= 9
-        ? (int) $selectedDate->format('Y')
-        : (int) $selectedDate->format('Y') - 1;
-    $start = new DateTimeImmutable($schoolYear . '-09-01 00:00:00', new DateTimeZone('UTC'));
-    $end = $start->modify('+1 year');
+    if ($scope === 'year') {
+        $schoolYear = (int) $selectedDate->format('n') >= 9
+            ? (int) $selectedDate->format('Y')
+            : (int) $selectedDate->format('Y') - 1;
+        $start = new DateTimeImmutable($schoolYear . '-09-01 00:00:00', new DateTimeZone('UTC'));
+        $end = $start->modify('+1 year');
+    } else {
+        $start = $selectedDate->modify('monday this week')->setTime(0, 0);
+        $end = $start->modify('+7 days');
+    }
     $query = [
         'start' => $start->format('Y-m-d\T00:00:00.000\Z'),
         'end' => $end->format('Y-m-d\T00:00:00.000\Z'),

@@ -11,12 +11,5 @@
 - Évolution des résultats.
 - Estimation de la moyenne nécessaire pour atteindre un objectif.
 
-12. **Absences**
-
-- Séparation absences, retards et justificatifs.
-- Statut du justificatif.
-- Historique par période.
-- Alertes sur la page en cas de seuil d’absences dépassé.
-
 
 Utiliser le site de MyGES pour trouver comment récupérer les données et vérifier l'état sur le site actuel en étant connecté.

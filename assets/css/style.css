@@ -1210,6 +1210,49 @@ hr.separateur {
     color: #9A5710;
     background: #FCE8C9;
 }
+.absence-groups {
+    display: grid;
+    gap: 18px;
+}
+.absence-group h2 {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin: 18px 16px 0;
+    color: var(--texte);
+    font-size: 15px;
+}
+.absence-group h2 span {
+    color: var(--texte-clair);
+    font-size: 12px;
+}
+.absence-group .absence-list {
+    padding-top: 10px;
+}
+.absence-card-late {
+    border-left-color: #E0B84C;
+}
+.absence-card-main small {
+    color: var(--texte-clair);
+    font-size: 11px;
+}
+.absence-threshold {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin: 0 16px 12px;
+    padding: 12px 14px;
+    border: 1px solid #E7B247;
+    border-radius: var(--rayon);
+    color: #80580C;
+    background: #FFF5DF;
+    font-size: 12px;
+    line-height: 1.45;
+}
+.absence-threshold[hidden] {
+    display: none;
+}
+.absence-threshold strong { color: #6D4700; }
 .bouton-filtre.is-active {
     color: var(--blanc);
     background: var(--corail-fonce);
@@ -2797,6 +2840,22 @@ hr.separateur {
     font-weight: 700;
     margin-bottom: 10px;
 }
+
+.planning-changes {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin: 0 16px 12px;
+    padding: 11px 13px;
+    border: 1px solid #E7B247;
+    border-radius: var(--rayon);
+    color: #80580C;
+    background: #FFF5DF;
+    font-size: 12px;
+    line-height: 1.45;
+}
+.planning-changes[hidden] { display: none; }
+.planning-changes strong { color: #6D4700; }
 
 .creneau {
     display: flex;

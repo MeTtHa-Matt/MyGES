@@ -53,7 +53,7 @@ $titre_page = 'Calendrier académique';
     <div class="toast" id="toast"></div>
 </div>
 <script src="assets/js/cache-reset.js?v=20260917-03"></script>
-<script src="assets/js/api.js?v=20260917-05"></script>
+<script src="assets/js/api.js?v=20260917-07"></script>
 <script src="assets/js/storage.js?v=20260917-03"></script>
 <script src="assets/js/app.js?v=20260917-03"></script>
 <script>
@@ -141,7 +141,7 @@ $titre_page = 'Calendrier académique';
         list.innerHTML = '';
         try {
             const year = yearSelect.value;
-            const payload = await window.mygesApi.planning(`${year}-09-15`);
+            const payload = await window.mygesApi.planning(`${year}-09-15`, 'year');
             periods = buildPeriods(unwrap(payload));
             status.textContent = periods.length ? 'Calendrier synchronisé.' : 'Aucune donnée de planning pour cette année.';
             render();
