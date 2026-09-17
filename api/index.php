@@ -221,6 +221,210 @@ function normalizeText(string $value): string {
     return trim((preg_replace('/\s+/', ' ', $value) ?? $value));
 }
 
+function extractUrlFromAttribute(string $value): string {
+    $value = trim($value);
+    if ($value === '') return '';
+    if (preg_match('#https?://#i', $value)) return $value;
+    if (str_starts_with($value, '/')) return 'https://myges.fr' . $value;
+    return 'https://myges.fr/' . ltrim($value, '/');
+}
+
+function parseProjectRows(string $html): array {
+    $fragment = $html;
+    if (preg_match('/<!\[CDATA\[(.*)\]\]>/s', $html, $cdataMatch)) {
+        $fragment = $cdataMatch[1];
+    }
+    $fragment = preg_replace('/<\?xml[^>]*>/', '', $fragment) ?? $fragment;
+    $dom = new DOMDocument();
+    @$dom->loadHTML('<?xml encoding="UTF-8">' . $fragment);
+
+    $projects = [];
+    foreach ($dom->getElementsByTagName('tr') as $row) {
+        $cells = [];
+        $cellNodes = [];
+        foreach ($row->childNodes as $child) {
+            if ($child->nodeType !== XML_ELEMENT_NODE || strtolower($child->nodeName) !== 'td') continue;
+            $cellNodes[] = $child;
+            $cleanCell = $child->cloneNode(true);
+            if (!$cleanCell instanceof DOMElement) continue;
+            foreach (['script', 'style', 'button'] as $tagName) {
+                while ($nodes = $cleanCell->getElementsByTagName($tagName)) {
+                    if ($nodes->length === 0) break;
+                    $node = $nodes->item(0);
+                    $node?->parentNode?->removeChild($node);
+                }
+            }
+            $cells[] = normalizeText($cleanCell->textContent);
+        }
+        if (count($cells) < 5) continue;
+        $teacher = $cells[0] !== '' ? $cells[0] : 'Intervenant à préciser';
+        if (preg_match('/Aucun autre intervenant/i', $teacher)) {
+            $teacher = 'Aucun autre intervenant';
+        }
+        $modified = $cells[1] !== '' ? $cells[1] : 'Date inconnue';
+        $subject = $cells[2] !== '' ? $cells[2] : 'Matière';
+        $title = $cells[3] !== '' ? $cells[3] : 'Projet pédagogique';
+
+        $actions = [];
+        $actionCell = $cellNodes[4];
+        if (!$actionCell instanceof DOMElement) continue;
+        foreach ($actionCell->getElementsByTagName('button') as $button) {
+            if (!$button instanceof DOMElement) continue;
+            $onclick = trim($button->getAttribute('onclick'));
+            $url = '';
+            if (preg_match('/window\.open\(\s*["\']([^"\']+)["\']/', $onclick, $match)) {
+                $url = extractUrlFromAttribute($match[1]);
+            }
+            if ($url === '') continue;
+            $label = str_contains($url, '/pdf/')
+                ? 'Télécharger le PDF'
+                : (str_contains($url, 'project-group-creation') ? 'Créer un groupe' : (str_contains($url, 'project-group-gestion') ? 'Gérer le groupe' : 'Ouvrir le projet'));
+            $actions[] = [
+                'label' => $label,
+                'url' => $url,
+                'kind' => preg_match('/(?:syllabus|programme|cours|annonce)/i', $label) ? 'syllabus' : (preg_match('/(?:groupe|rejoind|quitt|suivi|progress)/i', $label) ? 'groupe' : 'action'),
+            ];
+        }
+        foreach ($actionCell->getElementsByTagName('a') as $link) {
+            if (!$link instanceof DOMElement) continue;
+            $href = trim($link->getAttribute('href'));
+            if ($href === '') continue;
+            $url = extractUrlFromAttribute($href);
+            $label = str_contains($url, '/pdf/')
+                ? 'Télécharger le PDF'
+                : (str_contains($url, 'project-group-creation') ? 'Créer un groupe' : (str_contains($url, 'project-group-gestion') ? 'Gérer le groupe' : 'Ouvrir le projet'));
+            $actions[] = [
+                'label' => $label,
+                'url' => $url,
+                'kind' => preg_match('/(?:syllabus|programme|cours|annonce)/i', $label) ? 'syllabus' : (preg_match('/(?:groupe|rejoind|quitt|suivi|progress)/i', $label) ? 'groupe' : 'action'),
+            ];
+        }
+
+        $projects[] = [
+            'teacher' => $teacher,
+            'modified' => $modified,
+            'subject' => $subject,
+            'title' => $title,
+            'actions' => array_values(array_filter($actions, static fn ($action) => $action['label'] !== '')),
+        ];
+    }
+    return $projects;
+}
+
+function fetchMygesProjects(string $cookie, ?string $selectedYear = null): array {
+    if ($cookie === '') return ['__upstream_status' => 401];
+    $url = 'https://myges.fr/student/project-list';
+    $jar = (string) ($_SESSION['myges_cookie_jar'] ?? '');
+    $handle = curl_init($url);
+    $curlOptions = [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_FOLLOWLOCATION => true,
+        CURLOPT_HTTPGET => true,
+        CURLOPT_CONNECTTIMEOUT => 8,
+        CURLOPT_TIMEOUT => 20,
+        CURLOPT_SSL_VERIFYPEER => true,
+        CURLOPT_USERAGENT => 'Mozilla/5.0 (compatible; MyGES Local App)',
+    ];
+    if ($jar !== '' && is_readable($jar)) {
+        $curlOptions[CURLOPT_COOKIEFILE] = $jar;
+        $curlOptions[CURLOPT_COOKIEJAR] = $jar;
+    } else {
+        $curlOptions[CURLOPT_HTTPHEADER] = ['Cookie: ' . $cookie];
+    }
+    curl_setopt_array($handle, $curlOptions);
+    $raw = (string) curl_exec($handle);
+    $status = (int) curl_getinfo($handle, CURLINFO_HTTP_CODE);
+    curl_close($handle);
+    if ($raw === '' || $status < 200 || $status >= 300) {
+        return ['__upstream_status' => $status ?: 502, '__upstream_body' => $raw];
+    }
+
+    $dom = new DOMDocument();
+    @$dom->loadHTML('<?xml encoding="UTF-8">' . $raw);
+
+    $years = [];
+    $selectedValue = '';
+    foreach ($dom->getElementsByTagName('select') as $select) {
+        $name = $select->getAttribute('name');
+        $id = $select->getAttribute('id');
+        if (!str_contains($name . ' ' . $id, 'yearSelect')) continue;
+        foreach ($select->getElementsByTagName('option') as $option) {
+            $value = trim($option->getAttribute('value'));
+            $label = normalizeText($option->textContent);
+            if ($value !== '' && $label !== '') {
+                $years[] = ['value' => $value, 'label' => $label];
+                if ($option->hasAttribute('selected')) {
+                    $selectedValue = $value;
+                }
+            }
+        }
+        if ($years) break;
+    }
+    if ($selectedValue === '' && $years) {
+        $selectedValue = $years[0]['value'];
+    }
+
+    $requestedYear = $selectedYear !== null && trim((string) $selectedYear) !== '' ? trim((string) $selectedYear) : $selectedValue;
+    $viewState = '';
+    if (preg_match('/name="javax\.faces\.ViewState"[^>]+value="([^"]+)"/i', $raw, $viewMatch)) {
+        $viewState = html_entity_decode($viewMatch[1], ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    }
+
+    $projects = [];
+    $sourceHtml = $raw;
+    if ($selectedYear !== null && trim((string) $selectedYear) !== '' && $viewState !== '') {
+        $payload = http_build_query([
+            'projectListForm' => 'projectListForm',
+            'projectListForm:selectYear:yearSelect_focus' => '',
+            'projectListForm:selectYear:yearSelect_input' => $requestedYear,
+            'javax.faces.ViewState' => $viewState,
+            'javax.faces.partial.ajax' => 'true',
+            'javax.faces.source' => 'projectListForm:selectYear:yearSelect',
+            'javax.faces.partial.execute' => 'projectListForm:selectYear:yearSelect',
+            'javax.faces.partial.render' => 'projectListForm:listProjectWidget:panelListProject',
+            'javax.faces.behavior.event' => 'valueChange',
+            'javax.faces.partial.event' => 'change',
+        ]);
+
+        $ajaxHandle = curl_init($url);
+        $ajaxHeaders = [
+            'Accept: text/xml, */*;q=0.01',
+            'X-Requested-With: XMLHttpRequest',
+            'Faces-Request: partial/ajax',
+            'Content-Type: application/x-www-form-urlencoded; charset=UTF-8',
+        ];
+        if ($jar !== '' && is_readable($jar)) {
+            curl_setopt($ajaxHandle, CURLOPT_COOKIEFILE, $jar);
+            curl_setopt($ajaxHandle, CURLOPT_COOKIEJAR, $jar);
+        } else {
+            $ajaxHeaders[] = 'Cookie: ' . $cookie;
+        }
+        curl_setopt_array($ajaxHandle, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_FOLLOWLOCATION => true,
+            CURLOPT_POST => true,
+            CURLOPT_POSTFIELDS => $payload,
+            CURLOPT_HTTPHEADER => $ajaxHeaders,
+            CURLOPT_CONNECTTIMEOUT => 8,
+            CURLOPT_TIMEOUT => 20,
+            CURLOPT_SSL_VERIFYPEER => true,
+            CURLOPT_USERAGENT => 'Mozilla/5.0 (compatible; MyGES Local App)',
+        ]);
+        $ajaxResponse = (string) curl_exec($ajaxHandle);
+        curl_close($ajaxHandle);
+
+        if (preg_match('/<update[^>]+id="projectListForm:listProjectWidget:panelListProject"[^>]*>(.*?)<\/update>/is', $ajaxResponse, $match)) {
+            $sourceHtml = $match[1];
+        }
+    }
+
+    $projects = parseProjectRows($sourceHtml);
+    if ($projects === []) {
+        return ['years' => $years, 'projects' => [], 'selectedYear' => $requestedYear];
+    }
+    return ['years' => $years, 'projects' => $projects, 'selectedYear' => $requestedYear];
+}
+
 function firstMatchGroup(string $subject, array $patterns): string {
     foreach ($patterns as $pattern) {
         if (preg_match($pattern, $subject, $match)) {
@@ -857,6 +1061,7 @@ $routes = [
     'news' => '/rss/news',
     'events' => '/common/events',
     'event' => '/common/event/{id}',
+    'projects' => '/student/project-list',
     'planning' => envValue('MYGES_PLANNING_PATH', '/planning'),
     'grades' => envValue('MYGES_GRADES_PATH', '/grades'),
     'absences' => envValue('MYGES_ABSENCES_PATH', '/absences'),
@@ -904,6 +1109,12 @@ if ($resource === 'event') {
     if ($eventId === '') respond(['error' => 'Identifiant d’événement requis.'], 422);
     $payload = fetchMygesEvent($eventId, (string) ($_SESSION['myges_cookie'] ?? ''));
     if (isset($payload['__upstream_status'])) respond(['error' => 'Détails de l’événement indisponibles.'], 502);
+    respond($payload);
+}
+if ($resource === 'projects') {
+    $year = (string) ($_GET['year'] ?? '');
+    $payload = fetchMygesProjects((string) ($_SESSION['myges_cookie'] ?? ''), $year !== '' ? $year : null);
+    if (isset($payload['__upstream_status'])) respond(['error' => 'Projets pédagogiques MyGES indisponibles.'], 502);
     respond($payload);
 }
 if (empty($_SESSION['access_token'])) respond(['error' => 'Session expirée, veuillez vous reconnecter.'], 401);

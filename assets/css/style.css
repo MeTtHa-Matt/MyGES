@@ -2,6 +2,266 @@
    Portail Étudiant — feuille de style principale
    ============================================================ */
 
+html {
+    scrollbar-width: thin;
+    scrollbar-color: var(--corail-fonce) var(--corail-clair);
+}
+
+html::-webkit-scrollbar {
+    width: 9px;
+}
+
+html::-webkit-scrollbar-track {
+    background: var(--corail-clair);
+}
+
+html::-webkit-scrollbar-thumb {
+    border: 2px solid var(--corail-clair);
+    border-radius: 10px;
+    background: var(--corail-fonce);
+}
+
+html::-webkit-scrollbar-thumb:hover {
+    background: var(--corail);
+}
+
+.project-page {
+    padding: 12px 12px 24px;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.project-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 14px;
+}
+
+.project-kicker {
+    margin: 0 0 6px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--texte-clair);
+}
+
+.project-heading h1 {
+    margin: 0;
+    font-size: clamp(1.4rem, 5vw, 2rem);
+    line-height: 1.2;
+    color: var(--texte);
+}
+
+.project-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: stretch;
+    width: 100%;
+    margin-bottom: 16px;
+}
+
+.project-year-label {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+    width: 100%;
+    color: var(--texte-clair);
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+.project-year-select {
+    border: 1px solid var(--bordure);
+    background: var(--blanc);
+    border-radius: 12px;
+    padding: 12px 14px;
+    font-size: 0.95rem;
+    color: var(--texte);
+    width: 100%;
+    min-height: 46px;
+}
+
+.project-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    width: 100%;
+}
+
+.project-card {
+    background: linear-gradient(180deg, #fff 0%, #fffaf7 100%);
+    border: 1px solid var(--bordure);
+    border-radius: 18px;
+    padding: 14px 12px;
+    box-shadow: var(--ombre);
+}
+
+.project-card-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+.project-badge {
+    display: inline-flex;
+    align-items: center;
+    background: var(--corail-clair);
+    color: var(--corail-fonce);
+    border-radius: 999px;
+    padding: 6px 10px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.project-date {
+    color: var(--texte-clair);
+    font-size: 0.78rem;
+    font-weight: 600;
+}
+
+.project-card h2 {
+    margin: 0 0 12px;
+    font-size: 1.08rem;
+    line-height: 1.4;
+    color: var(--texte);
+}
+
+.project-meta {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    font-size: 0.83rem;
+    color: var(--texte-clair);
+}
+
+.project-meta p {
+    margin: 0;
+    line-height: 1.5;
+}
+
+.project-meta strong {
+    color: var(--texte);
+}
+
+.project-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 16px;
+}
+
+.project-action-btn {
+    border: 0;
+    border-radius: 10px;
+    padding: 10px 12px;
+    font-weight: 700;
+    font-size: 0.78rem;
+    line-height: 1.2;
+    color: var(--blanc);
+    background: var(--corail);
+    min-height: 42px;
+    transition: transform 0.15s ease;
+}
+
+.project-action-btn:active {
+    transform: scale(0.98);
+}
+
+.project-action-syllabus {
+    background: linear-gradient(135deg, #ff8a65, #ff6b6b);
+}
+
+.project-action-groupe {
+    background: linear-gradient(135deg, #5b7cfa, #4457d9);
+}
+
+.project-action-action,
+.project-action-default {
+    background: linear-gradient(135deg, #2c9b7d, #238b57);
+}
+
+.project-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    min-height: 220px;
+    box-sizing: border-box;
+    background: #fff;
+    border: 1px dashed var(--bordure);
+    border-radius: 18px;
+    padding: 28px 20px;
+    text-align: center;
+    color: var(--texte-clair);
+}
+
+.project-empty p {
+    margin: 0 0 8px;
+    font-weight: 700;
+    color: var(--texte);
+}
+
+.project-empty small {
+    display: block;
+    line-height: 1.5;
+}
+
+@media (min-width: 640px) {
+    .project-page {
+        padding: 18px 16px 32px;
+    }
+
+    .project-toolbar {
+        justify-content: flex-end;
+    }
+
+    .project-year-label {
+        flex-direction: row;
+        align-items: center;
+        justify-content: flex-end;
+        width: auto;
+    }
+
+    .project-year-select {
+        width: auto;
+        min-width: 145px;
+    }
+
+    .project-actions {
+        flex-direction: row;
+        flex-wrap: wrap;
+    }
+
+    .project-action-btn {
+        width: auto;
+    }
+}
+
+@media (min-width: 768px) {
+    .project-page {
+        padding: 28px 24px 48px;
+    }
+
+    .project-list {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 18px;
+    }
+
+    .project-empty {
+        grid-column: 1 / -1;
+        min-height: 260px;
+    }
+}
+
 :root {
     --corail: #FF6B6B;
     --corail-fonce: #E85555;

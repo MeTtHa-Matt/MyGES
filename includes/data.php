@@ -26,6 +26,7 @@ $menu = [
             ['label' => 'Emploi du temps', 'href' => 'emploi_du_temps.php'],
             ['label' => 'Notes', 'href' => 'notes.php'],
             ['label' => 'Support de cours', 'href' => 'supports.php'],
+            ['label' => 'Projets pédagogiques', 'href' => 'projets.php'],
         ],
     ],
     [
