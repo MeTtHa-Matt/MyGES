@@ -37,6 +37,7 @@ window.mygesApi = {
     years: () => request('years'),
     classes: year => request('classes', { query: year ? { year } : {} }),
     news: () => request('news', { timeout: 30000 }),
+    messages: () => request('messages', { timeout: 30000 }),
     events: () => request('events', { timeout: 30000 }),
     event: id => request('event', { query: id ? { id } : {}, timeout: 30000 }),
     projects: year => request('projects', { query: year ? { year } : {}, timeout: 30000 }),
@@ -44,5 +45,6 @@ window.mygesApi = {
     grades: () => request('grades', { timeout: 90000 }),
     absences: () => request('absences', { timeout: 90000 }),
     supports: () => request('supports'),
+    documents: () => request('documents', { timeout: 30000 }),
     logout: () => request('logout', { method: 'POST' })
 };

@@ -1,11 +1,3 @@
-4. **Projets pédagogiques**
-
-- Liste par année scolaire.
-- Syllabus des projets.
-- Rejoindre ou quitter un groupe.
-- Suivi de l’avancement du groupe.
-- Source : `/student/project-list`.
-
 5. **Notifications et messages**
 
 - Notifications MyGES importantes.

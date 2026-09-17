@@ -221,6 +221,69 @@ function normalizeText(string $value): string {
     return trim((preg_replace('/\s+/', ' ', $value) ?? $value));
 }
 
+function fetchMygesMessages(string $cookie): array {
+    if ($cookie === '') return ['__upstream_status' => 401];
+    $url = 'https://myges.fr/common/user-message';
+    $jar = (string) ($_SESSION['myges_cookie_jar'] ?? '');
+    $handle = curl_init($url);
+    $headers = [];
+    if ($jar !== '' && is_readable($jar)) {
+        curl_setopt($handle, CURLOPT_COOKIEFILE, $jar);
+        curl_setopt($handle, CURLOPT_COOKIEJAR, $jar);
+    } else {
+        $headers[] = 'Cookie: ' . $cookie;
+    }
+    curl_setopt_array($handle, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_FOLLOWLOCATION => true,
+        CURLOPT_HTTPGET => true,
+        CURLOPT_HTTPHEADER => $headers,
+        CURLOPT_CONNECTTIMEOUT => 8,
+        CURLOPT_TIMEOUT => 20,
+        CURLOPT_SSL_VERIFYPEER => true,
+        CURLOPT_USERAGENT => 'Mozilla/5.0 (compatible; MyGES Local App)',
+    ]);
+    $raw = (string) curl_exec($handle);
+    $status = (int) curl_getinfo($handle, CURLINFO_HTTP_CODE);
+    curl_close($handle);
+    if ($raw === '' || $status < 200 || $status >= 300) {
+        return ['__upstream_status' => $status ?: 502];
+    }
+
+    $dom = new DOMDocument();
+    @$dom->loadHTML('<?xml encoding="UTF-8">' . $raw);
+    $messages = [];
+    foreach ($dom->getElementsByTagName('table') as $table) {
+        if (!$table instanceof DOMElement || $table->getAttribute('role') !== 'grid') continue;
+        $headersByColumn = [];
+        foreach ($table->getElementsByTagName('th') as $index => $header) {
+            if (!$header instanceof DOMElement) continue;
+            $headersByColumn[$index] = strtolower(normalizeText($header->textContent));
+        }
+        if (!in_array('sujet', $headersByColumn, true) || !in_array('auteur', $headersByColumn, true)) continue;
+        foreach ($table->getElementsByTagName('tr') as $row) {
+            if (!$row instanceof DOMElement || $row->getAttribute('role') !== 'row') continue;
+            $cells = [];
+            foreach ($row->childNodes as $child) {
+                if (!$child instanceof DOMElement || strtolower($child->nodeName) !== 'td') continue;
+                $cells[] = normalizeText($child->textContent);
+            }
+            if (count($cells) < 3) continue;
+            $rowId = trim($row->getAttribute('data-rk'));
+            $messages[] = [
+                'id' => $rowId !== '' ? 'myges-message-' . $rowId : 'myges-message-' . md5(implode('|', $cells)),
+                'subject' => $cells[0] !== '' ? $cells[0] : 'Message MyGES',
+                'author' => $cells[1] !== '' ? $cells[1] : 'MyGES',
+                'sentAt' => $cells[2] !== '' ? $cells[2] : 'Date inconnue',
+                'url' => $url,
+                'type' => 'message',
+            ];
+        }
+        if ($messages) break;
+    }
+    return ['messages' => $messages, 'source' => $url];
+}
+
 function extractUrlFromAttribute(string $value): string {
     $value = trim($value);
     if ($value === '') return '';
@@ -1059,6 +1122,7 @@ $routes = [
     'years' => '/me/years',
     'classes' => '/me/{year}/classes',
     'news' => '/rss/news',
+    'messages' => '/common/user-message',
     'events' => '/common/events',
     'event' => '/common/event/{id}',
     'projects' => '/student/project-list',
@@ -1097,6 +1161,11 @@ if ($method !== 'GET' || !isset($routes[$resource])) respond(['error' => 'Ressou
 if ($resource === 'news') {
     $payload = fetchMygesNews();
     if (isset($payload['__upstream_status'])) respond(['error' => 'Actualités MyGES indisponibles.'], 502);
+    respond($payload);
+}
+if ($resource === 'messages') {
+    $payload = fetchMygesMessages((string) ($_SESSION['myges_cookie'] ?? ''));
+    if (isset($payload['__upstream_status'])) respond(['error' => 'Messages MyGES indisponibles.'], 502);
     respond($payload);
 }
 if ($resource === 'events') {
