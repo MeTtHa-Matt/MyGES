@@ -164,6 +164,59 @@ function upstream(string $path, ?string $token = null, array $query = [], bool $
     return $decoded['result'] ?? $decoded['data'] ?? $decoded;
 }
 
+function fetchMygesNews(): array {
+    $url = 'https://myges.fr/rss/news';
+    $handle = curl_init($url);
+    curl_setopt_array($handle, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_HTTPGET => true,
+        CURLOPT_CONNECTTIMEOUT => 8,
+        CURLOPT_TIMEOUT => 20,
+        CURLOPT_FOLLOWLOCATION => true,
+        CURLOPT_SSL_VERIFYPEER => true,
+        CURLOPT_USERAGENT => 'Mozilla/5.0 (compatible; MyGES Local App)',
+    ]);
+    $raw = (string) curl_exec($handle);
+    $status = (int) curl_getinfo($handle, CURLINFO_HTTP_CODE);
+    curl_close($handle);
+    if ($raw === '' || $status < 200 || $status >= 300) {
+        return ['__upstream_status' => $status ?: 502, '__upstream_body' => $raw];
+    }
+    libxml_use_internal_errors(true);
+    $xml = simplexml_load_string($raw);
+    if ($xml === false) {
+        return ['error' => 'Le flux RSS MyGES est inaccessible.', 'diagnostic' => 'Impossible de parser le flux d’actualités.'];
+    }
+
+    $items = [];
+    foreach ($xml->channel->item as $item) {
+        $title = trim((string) $item->title);
+        $link = trim((string) $item->link);
+        $encodedBody = '';
+        $contentNode = $item->children('http://purl.org/rss/1.0/modules/content/');
+        if ($contentNode && isset($contentNode->encoded)) {
+            $encodedBody = trim((string) $contentNode->encoded);
+        }
+        if ($encodedBody === '') {
+            $encodedBody = trim((string) ($item->description ?? ''));
+        }
+        $body = $encodedBody;
+        $summary = trim(strip_tags($body));
+        $summary = preg_replace('/\s+/', ' ', $summary) ?? $summary;
+        if ($title === '' && $link === '') continue;
+        $items[] = [
+            'id' => $link !== '' ? md5($link) : md5($title . (string) ($item->pubDate ?? '')),
+            'title' => $title !== '' ? $title : 'Actualité MyGES',
+            'link' => $link,
+            'pubDate' => trim((string) ($item->pubDate ?? '')),
+            'summary' => $summary !== '' ? $summary : 'Consulter l’article complet.',
+            'body' => $body !== '' ? $body : '<p>Le contenu détaillé n’est pas disponible pour cet article.</p>',
+            'source' => 'Réseau GES',
+        ];
+    }
+    return $items;
+}
+
 function fetchMygesMarks(string $cookie): array {
     if ($cookie === '') return ['__upstream_status' => 401];
     $headers = ['Accept: text/xml, */*;q=0.01', 'X-Requested-With: XMLHttpRequest', 'Faces-Request: partial/ajax', 'Content-Type: application/x-www-form-urlencoded; charset=UTF-8', 'Cookie: ' . $cookie];
@@ -620,6 +673,7 @@ $routes = [
     'profile' => '/me/profile',
     'years' => '/me/years',
     'classes' => '/me/{year}/classes',
+    'news' => '/rss/news',
     'planning' => envValue('MYGES_PLANNING_PATH', '/planning'),
     'grades' => envValue('MYGES_GRADES_PATH', '/grades'),
     'absences' => envValue('MYGES_ABSENCES_PATH', '/absences'),
@@ -652,6 +706,11 @@ if ($resource === 'logout' && $method === 'POST') {
     respond(['authenticated' => false]);
 }
 if ($method !== 'GET' || !isset($routes[$resource])) respond(['error' => 'Ressource inconnue.'], 404);
+if ($resource === 'news') {
+    $payload = fetchMygesNews();
+    if (isset($payload['__upstream_status'])) respond(['error' => 'Actualités MyGES indisponibles.'], 502);
+    respond($payload);
+}
 if (empty($_SESSION['access_token'])) respond(['error' => 'Session expirée, veuillez vous reconnecter.'], 401);
 if ($resource === 'documents') {
     $payload = fetchMygesDocuments((string) ($_SESSION['myges_cookie'] ?? ''));

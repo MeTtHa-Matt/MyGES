@@ -38,13 +38,6 @@
 - Filtrage par année scolaire.
 - Synchronisation avec le planning.
 
-9. **Profil étudiant complet**
-
-- École, campus, formation, classe, année scolaire.
-- Coordonnées utiles.
-- Liens vers les services associés.
-- Informations de session et dernière synchronisation.
-
 10. **Planning plus interactif**
 
 - Détection des changements de salle ou d’horaire.

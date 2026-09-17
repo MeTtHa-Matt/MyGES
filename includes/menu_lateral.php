@@ -25,6 +25,11 @@
                 <span>Mon profil</span>
             </a>
         </li>
+        <li class="panneau-item">
+            <a href="actualites.php" class="panneau-item-entete profile-link-item">
+                <span>Actualités</span>
+            </a>
+        </li>
         <?php foreach ($menu as $section): ?>
             <li class="panneau-item">
                 <?php if (!empty($section['sous_items'])): ?>

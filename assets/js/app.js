@@ -1086,7 +1086,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('sw.js?v=20260917-03', { scope: './', updateViaCache: 'none' }).catch(() => {});
+        navigator.serviceWorker.register('sw.js?v=20260917-04', { scope: './', updateViaCache: 'none' }).catch(() => {});
     }
 
     const isLogin = Boolean(login);

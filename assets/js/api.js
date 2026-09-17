@@ -36,6 +36,7 @@ window.mygesApi = {
     profile: () => request('profile'),
     years: () => request('years'),
     classes: year => request('classes', { query: year ? { year } : {} }),
+    news: () => request('news', { timeout: 30000 }),
     planning: date => request('planning', { query: date ? { date } : {} }),
     grades: () => request('grades', { timeout: 90000 }),
     absences: () => request('absences', { timeout: 90000 }),
