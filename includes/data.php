@@ -33,6 +33,7 @@ $menu = [
         'label' => 'Administration',
         'sous_items' => [
             ['label' => 'Notifications et messages', 'href' => 'notifications.php'],
+            ['label' => 'Calendrier académique', 'href' => 'calendrier.php'],
             ['label' => 'Absences', 'href' => 'absences.php'],
             ['label' => 'Documents', 'href' => 'documents.php'],
             ['label' => 'Événements campus', 'href' => 'evenements.php'],

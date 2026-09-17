@@ -1,4 +1,4 @@
-const CACHE_NAME = 'myges-shell-v5';
+const CACHE_NAME = 'myges-shell-v6';
 const STATIC_ASSETS = [
     './assets/css/style.css',
     './assets/js/api.js',

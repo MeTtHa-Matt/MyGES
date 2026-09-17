@@ -1,22 +1,3 @@
-5. **Notifications et messages**
-
-- Notifications MyGES importantes.
-- Messages personnels ou administratifs.
-- Alertes pour une nouvelle note, un document ou un changement de planning.
-- Le site expose déjà une entrée de messagerie via `/common/user-message`.
-
-6. **Accueil enrichi**
-
-- Prochains événements.
-- Actualités récentes.
-- Raccourcis vers les sections importantes.
-
-7. **Calendrier académique**
-
-- Vacances, périodes de cours, examens et rentrée.
-- Filtrage par année scolaire.
-- Synchronisation avec le planning.
-
 10. **Planning plus interactif**
 
 - Détection des changements de salle ou d’horaire.

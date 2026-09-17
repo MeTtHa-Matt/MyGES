@@ -319,6 +319,36 @@ document.addEventListener('DOMContentLoaded', () => {
         window.DONNEES_EMPLOI_DU_TEMPS = items.reduce((all, item) => { const key = dateKey(item); if (key) (all[key] ||= []).push(item); return all; }, {});
     }
 
+    const homeEventDate = item => {
+        const raw = text(item.eventDate || item.date || item.startDate || item.start, '');
+        const french = raw.match(/(\d{2})\/(\d{2})\/(\d{4})(?:\s+(\d{2})h(\d{2}))?/);
+        if (french) return new Date(`${french[3]}-${french[2]}-${french[1]}T${french[4] || '23'}:${french[5] || '59'}:00`);
+        const parsed = new Date(raw);
+        return Number.isNaN(parsed.getTime()) ? null : parsed;
+    };
+
+    function renderHomeEvents(items) {
+        const section = document.getElementById('home-events');
+        if (!section) return;
+        const list = section.querySelector('.home-feed-list');
+        const upcoming = items.filter(item => {
+            const date = homeEventDate(item);
+            return !date || date >= new Date();
+        }).sort((first, second) => (homeEventDate(first)?.getTime() || Number.MAX_SAFE_INTEGER) - (homeEventDate(second)?.getTime() || Number.MAX_SAFE_INTEGER)).slice(0, 3);
+        list.innerHTML = upcoming.length ? upcoming.map(item => {
+            const date = homeEventDate(item);
+            return `<a class="home-feed-item" href="evenements.php"><span class="home-feed-date">${escapeHtml(date ? date.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' }) : 'À venir')}</span><span><strong>${escapeHtml(text(item.title || item.name, 'Événement campus'))}</strong><small>${escapeHtml(text(item.location || item.place, 'Détails disponibles dans les événements'))}</small></span></a>`;
+        }).join('') : '<p class="etat-vide-mini">Aucun événement à venir.</p>';
+    }
+
+    function renderHomeNews(items) {
+        const section = document.getElementById('home-news');
+        if (!section) return;
+        const list = section.querySelector('.home-feed-list');
+        const recent = items.slice(0, 3);
+        list.innerHTML = recent.length ? recent.map(item => `<a class="home-feed-item" href="actualites.php"><span class="home-feed-date">Actualité</span><span><strong>${escapeHtml(text(item.title, 'Actualité MyGES'))}</strong><small>${escapeHtml(text(item.summary, 'Consulter l’actualité'))}</small></span></a>`).join('') : '<p class="etat-vide-mini">Aucune actualité disponible.</p>';
+    }
+
     const absenceDateKey = item => dateKey(item) || (() => {
         const value = text(item.date || item.day, '');
         const match = value.match(/(\d{1,2})[/-](\d{1,2})[/-](\d{4})/);
@@ -1087,7 +1117,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('sw.js?v=20260917-04', { scope: './', updateViaCache: 'none' }).catch(() => {});
+        navigator.serviceWorker.register('sw.js?v=20260917-05', { scope: './', updateViaCache: 'none' }).catch(() => {});
     }
 
     const isLogin = Boolean(login);
@@ -1096,6 +1126,8 @@ document.addEventListener('DOMContentLoaded', () => {
         loadProfile();
         if (document.querySelector('.page-login')) return;
         if (document.querySelector('.section-accueil')) loadResource('planning', renderHome);
+        if (document.getElementById('home-events')) loadResource('events', renderHomeEvents);
+        if (document.getElementById('home-news')) loadResource('news', renderHomeNews);
         if (document.getElementById('home-absences')) loadResource('absences', renderHomeAbsences);
         if (document.getElementById('home-averages')) loadResource('grades', renderHomeAverages);
         if (document.querySelector('.nav-jour')) loadResource('planning', renderPlanning);

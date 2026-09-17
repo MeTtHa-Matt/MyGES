@@ -21,7 +21,7 @@ $prochains_cours = array_slice($prochains_cours, 0, 3);
 <link rel="apple-touch-icon" href="assets/img/favicon.jpeg">
 <link rel="manifest" href="manifest.json">
 <title>Accueil — Portail Étudiant</title>
-<link rel="stylesheet" href="assets/css/style.css?v=20260916-03">
+<link rel="stylesheet" href="assets/css/style.css?v=20260917-12">
 </head>
 <body>
 <div class="app-frame">
@@ -73,6 +73,37 @@ $prochains_cours = array_slice($prochains_cours, 0, 3);
             <p class="etat-vide-mini">Chargement des moyennes…</p>
         </div>
 
+        <hr class="separateur">
+        <div class="section-accueil" id="home-events">
+            <div class="home-section-heading">
+                <h2 class="section-titre">Prochains événements</h2>
+                <a href="evenements.php" class="lien-voir-tout">Voir tout <?= icone_fleche_lien() ?></a>
+            </div>
+            <div class="home-feed-list"><p class="etat-vide-mini">Chargement des événements…</p></div>
+        </div>
+
+        <hr class="separateur">
+        <div class="section-accueil" id="home-news">
+            <div class="home-section-heading">
+                <h2 class="section-titre">Actualités récentes</h2>
+                <a href="actualites.php" class="lien-voir-tout">Voir tout <?= icone_fleche_lien() ?></a>
+            </div>
+            <div class="home-feed-list"><p class="etat-vide-mini">Chargement des actualités…</p></div>
+        </div>
+
+        <hr class="separateur">
+        <nav class="section-accueil home-shortcuts" aria-label="Raccourcis importants">
+            <h2 class="section-titre">Accès rapides</h2>
+            <div class="home-shortcuts-grid">
+                <a href="emploi_du_temps.php">Planning</a>
+                <a href="notes.php">Notes</a>
+                <a href="documents.php">Documents</a>
+                <a href="supports.php">Supports</a>
+                <a href="notifications.php">Messages</a>
+                <a href="calendrier.php">Calendrier</a>
+            </div>
+        </nav>
+
     </main>
 
     <button type="button" class="bouton-flottant" id="btn-telecharger-ical" aria-label="Télécharger l'agenda (.ical)"><?= icone_calendrier() ?></button>
@@ -88,6 +119,6 @@ $prochains_cours = array_slice($prochains_cours, 0, 3);
 <script src="assets/js/cache-reset.js?v=20260917-02"></script>
 <script src="assets/js/api.js?v=20260917-02"></script>
 <script src="assets/js/storage.js?v=20260917-02"></script>
-<script src="assets/js/app.js?v=20260917-02"></script>
+<script src="assets/js/app.js?v=20260917-05"></script>
 </body>
 </html>
