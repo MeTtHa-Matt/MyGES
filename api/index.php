@@ -618,6 +618,8 @@ $resource = $_GET['resource'] ?? '';
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 $routes = [
     'profile' => '/me/profile',
+    'years' => '/me/years',
+    'classes' => '/me/{year}/classes',
     'planning' => envValue('MYGES_PLANNING_PATH', '/planning'),
     'grades' => envValue('MYGES_GRADES_PATH', '/grades'),
     'absences' => envValue('MYGES_ABSENCES_PATH', '/absences'),
@@ -672,6 +674,22 @@ if ($resource === 'profile') {
     $profile = upstream($routes['profile'], $_SESSION['access_token'], [], true);
     if (isset($profile['__upstream_status'])) respond(array_merge($_SESSION['student'] ?? [], ['offline' => true]));
     respond($profile);
+}
+if ($resource === 'years') {
+    $payload = upstream($routes['years'], $_SESSION['access_token'], [], true);
+    if (isset($payload['__upstream_status'])) respond(['error' => 'Informations scolaires MyGES indisponibles.'], 502);
+    respond($payload);
+}
+if ($resource === 'classes') {
+    $year = (string) ($_GET['year'] ?? '');
+    if ($year === '') {
+        $years = upstream($routes['years'], $_SESSION['access_token'], [], true);
+        $year = is_array($years) && isset($years[0]) && is_numeric((string) $years[0]) ? (string) $years[0] : date('Y');
+    }
+    $path = str_replace('{year}', rawurlencode((string) $year), $routes['classes']);
+    $payload = upstream($path, $_SESSION['access_token'], [], true);
+    if (isset($payload['__upstream_status'])) respond(['error' => 'Informations de classe MyGES indisponibles.'], 502);
+    respond($payload);
 }
 $query = [];
 if ($resource === 'planning') {

@@ -16,7 +16,7 @@
     </div>
     <div class="top-bar-row">
         <div class="top-bar-identity">
-            <button type="button" class="avatar profile-trigger" id="btn-profil" aria-label="Ouvrir le profil"><?= htmlspecialchars($etudiant['initiales']) ?></button>
+            <a href="profil.php" class="avatar profile-trigger" id="btn-profil" aria-label="Ouvrir le profil"><?= htmlspecialchars($etudiant['initiales']) ?></a>
             <div class="top-bar-copy">
                 <span class="top-bar-name"><?= htmlspecialchars($etudiant['nom_complet']) ?></span>
             </div>

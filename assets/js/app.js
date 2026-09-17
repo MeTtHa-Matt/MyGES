@@ -982,7 +982,14 @@ document.addEventListener('DOMContentLoaded', () => {
         logoutModal?.classList.add('visible');
         logoutModal?.setAttribute('aria-hidden', 'false');
     };
-    document.getElementById('btn-profil')?.addEventListener('click', openLogoutModal);
+    document.getElementById('btn-profil')?.addEventListener('click', event => {
+        const target = event.currentTarget;
+        if (target instanceof HTMLAnchorElement && target.getAttribute('href') === 'profil.php') {
+            return;
+        }
+        event.preventDefault();
+        window.location.href = 'profil.php';
+    });
     document.getElementById('btn-fermer-deconnexion')?.addEventListener('click', closeLogoutModal);
     document.getElementById('btn-annuler-deconnexion')?.addEventListener('click', closeLogoutModal);
     logoutModal?.addEventListener('click', event => { if (event.target === logoutModal) closeLogoutModal(); });

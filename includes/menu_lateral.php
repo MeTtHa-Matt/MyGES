@@ -20,6 +20,11 @@
         <span class="nom"><?= htmlspecialchars($etudiant['nom_complet']) ?></span>
     </div>
     <ul class="panneau-liste">
+        <li class="panneau-item">
+            <a href="profil.php" class="panneau-item-entete profile-link-item">
+                <span>Mon profil</span>
+            </a>
+        </li>
         <?php foreach ($menu as $section): ?>
             <li class="panneau-item">
                 <?php if (!empty($section['sous_items'])): ?>

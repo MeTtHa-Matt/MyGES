@@ -1,0 +1,69 @@
+1. **Actualités**
+- Actualités générales du Réseau GES.
+- Actualités propres à l’école.
+- Pagination, lecture d’un article et compteur de nouveautés.
+- Source observée : `/common/news` et flux RSS.
+
+2. **Événements campus**
+
+- Liste des événements à venir et passés.
+- Date d’inscription, statut inscrit/non inscrit, détails.
+- Ajout d’un événement au planning ou export calendrier.
+- Source : `/common/events`.
+
+4. **Projets pédagogiques**
+
+- Liste par année scolaire.
+- Syllabus des projets.
+- Rejoindre ou quitter un groupe.
+- Suivi de l’avancement du groupe.
+- Source : `/student/project-list`.
+
+5. **Notifications et messages**
+
+- Notifications MyGES importantes.
+- Messages personnels ou administratifs.
+- Alertes pour une nouvelle note, un document ou un changement de planning.
+- Le site expose déjà une entrée de messagerie via `/common/user-message`.
+
+6. **Accueil enrichi**
+
+- Prochains événements.
+- Actualités récentes.
+- Raccourcis vers les sections importantes.
+
+7. **Calendrier académique**
+
+- Vacances, périodes de cours, examens et rentrée.
+- Filtrage par année scolaire.
+- Synchronisation avec le planning.
+
+9. **Profil étudiant complet**
+
+- École, campus, formation, classe, année scolaire.
+- Coordonnées utiles.
+- Liens vers les services associés.
+- Informations de session et dernière synchronisation.
+
+10. **Planning plus interactif**
+
+- Détection des changements de salle ou d’horaire.
+- Export `.ics` plus complet avec salle, professeur, description et horaires valides.
+
+11. **Notes**
+
+- Détail des évaluations par matière.
+- Coefficients.
+- Moyennes par semestre et année.
+- Évolution des résultats.
+- Estimation de la moyenne nécessaire pour atteindre un objectif.
+
+12. **Absences**
+
+- Séparation absences, retards et justificatifs.
+- Statut du justificatif.
+- Historique par période.
+- Alertes sur la page en cas de seuil d’absences dépassé.
+
+
+Utiliser le site de MyGES pour trouver comment récupérer les données et vérifier l'état sur le site actuel en étant connecté.
