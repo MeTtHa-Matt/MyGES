@@ -217,6 +217,187 @@ function fetchMygesNews(): array {
     return $items;
 }
 
+function normalizeText(string $value): string {
+    return trim((preg_replace('/\s+/', ' ', $value) ?? $value));
+}
+
+function firstMatchGroup(string $subject, array $patterns): string {
+    foreach ($patterns as $pattern) {
+        if (preg_match($pattern, $subject, $match)) {
+            $value = $match[1] ?? $match[0] ?? '';
+            $decoded = html_entity_decode((string) $value, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+            $stripped = normalizeText(strip_tags($decoded));
+            if ($stripped !== '') return $stripped;
+        }
+    }
+    return '';
+}
+
+function fetchMygesEvents(string $cookie): array {
+    if ($cookie === '') return ['__upstream_status' => 401];
+    $url = 'https://myges.fr/common/events';
+    $jar = (string) ($_SESSION['myges_cookie_jar'] ?? '');
+    $handle = curl_init($url);
+    $curlOptions = [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_FOLLOWLOCATION => true,
+        CURLOPT_HTTPGET => true,
+        CURLOPT_CONNECTTIMEOUT => 8,
+        CURLOPT_TIMEOUT => 20,
+        CURLOPT_SSL_VERIFYPEER => true,
+        CURLOPT_USERAGENT => 'Mozilla/5.0 (compatible; MyGES Local App)',
+    ];
+    if ($jar !== '' && is_readable($jar)) {
+        $curlOptions[CURLOPT_COOKIEFILE] = $jar;
+        $curlOptions[CURLOPT_COOKIEJAR] = $jar;
+    } else {
+        $curlOptions[CURLOPT_HTTPHEADER] = ['Cookie: ' . $cookie];
+    }
+    curl_setopt_array($handle, $curlOptions);
+    $raw = (string) curl_exec($handle);
+    $status = (int) curl_getinfo($handle, CURLINFO_HTTP_CODE);
+    curl_close($handle);
+    if ($raw === '' || $status < 200 || $status >= 300) {
+        return ['__upstream_status' => $status ?: 502, '__upstream_body' => $raw];
+    }
+    $dom = new DOMDocument();
+    @$dom->loadHTML('<?xml encoding="UTF-8">' . $raw);
+    $events = [];
+    foreach ($dom->getElementsByTagName('a') as $link) {
+        $href = trim($link->getAttribute('href'));
+        if (!preg_match('#/common/event/(\d+)#', $href, $match)) continue;
+        $title = normalizeText($link->textContent);
+        if ($title === '') continue;
+        $context = '';
+        $parent = $link->parentNode;
+        while ($parent instanceof DOMNode) {
+            $context = normalizeText($parent->textContent);
+            if ($context !== '') break;
+            $parent = $parent->parentNode;
+        }
+        if ($context === '') $context = $title;
+        $status = 'Non inscrit(e)';
+        if (preg_match('/Inscrit\(e\)/i', $context)) {
+            $status = 'Inscrit(e)';
+        }
+        $registered = $status === 'Inscrit(e)';
+        $eventDate = firstMatchGroup($context, [
+            '/(?:Le\s*[:]|Date\s*(?:de\s*l[’\']?événement|de\s*l[’\']?événement)?\s*[:]|Date\s+)(\d{2}\/\d{2}\/\d{4}(?:\s+\d{2}h\d{2})?)/i',
+            '/(?:Le\s+)(\d{2}\/\d{2}\/\d{4}(?:\s+\d{2}h\d{2})?)/i',
+        ]);
+        $registrationStart = '';
+        $registrationEnd = '';
+        if (preg_match('/(?:Inscriptions?\s*(?:ouvertes?|ouvert\s*es)?\s*(?:du|de)\s*[: ]*|Du\s*[: ]*)(\d{2}\/\d{2}\/\d{4}(?:\s+\d{2}h\d{2})?)\s*(?:au|à)\s*(\d{2}\/\d{2}\/\d{4}(?:\s+\d{2}h\d{2})?)/i', $context, $inscriptionMatch)) {
+            $registrationStart = $inscriptionMatch[1];
+            $registrationEnd = $inscriptionMatch[2];
+        }
+        $id = (string) $match[1];
+        $events[$id] = [
+            'id' => $id,
+            'title' => $title,
+            'url' => 'https://myges.fr' . $href,
+            'eventDate' => $eventDate,
+            'registrationStart' => $registrationStart,
+            'registrationEnd' => $registrationEnd,
+            'registered' => $registered,
+            'status' => $status,
+            'location' => '',
+            'organizer' => '',
+            'description' => '',
+        ];
+    }
+
+    return array_values($events);
+}
+
+function fetchMygesEvent(string $eventId, string $cookie): array {
+    if ($eventId === '') return ['error' => 'Identifiant d’événement absent.', 'status' => 422];
+    $url = 'https://myges.fr/common/event/' . rawurlencode($eventId);
+    $jar = (string) ($_SESSION['myges_cookie_jar'] ?? '');
+    $handle = curl_init($url);
+    $curlOptions = [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_FOLLOWLOCATION => true,
+        CURLOPT_HTTPGET => true,
+        CURLOPT_CONNECTTIMEOUT => 8,
+        CURLOPT_TIMEOUT => 20,
+        CURLOPT_SSL_VERIFYPEER => true,
+        CURLOPT_USERAGENT => 'Mozilla/5.0 (compatible; MyGES Local App)',
+    ];
+    if ($jar !== '' && is_readable($jar)) {
+        $curlOptions[CURLOPT_COOKIEFILE] = $jar;
+        $curlOptions[CURLOPT_COOKIEJAR] = $jar;
+    } else {
+        $curlOptions[CURLOPT_HTTPHEADER] = ['Cookie: ' . $cookie];
+    }
+    curl_setopt_array($handle, $curlOptions);
+    $raw = (string) curl_exec($handle);
+    $status = (int) curl_getinfo($handle, CURLINFO_HTTP_CODE);
+    curl_close($handle);
+    if ($raw === '' || $status < 200 || $status >= 300) {
+        return ['__upstream_status' => $status ?: 502, '__upstream_body' => $raw];
+    }
+
+    $dom = new DOMDocument();
+    @$dom->loadHTML('<?xml encoding="UTF-8">' . $raw);
+    $title = '';
+    foreach (['h1', 'h2', 'h3'] as $tag) {
+        foreach ($dom->getElementsByTagName($tag) as $node) {
+            $candidate = normalizeText($node->textContent);
+            if ($candidate !== '' && stripos($candidate, 'Liste des Evénements') === false && stripos($candidate, 'Détail de l') === false) {
+                $title = $candidate;
+                break 2;
+            }
+        }
+    }
+
+    $eventDate = firstMatchGroup($raw, [
+        '/(?:Date\s*(?:de\s*l[’\']?événement|de\s*l[’\']?événement)?\s*[:]|Le\s*[:]|Le\s+)(\d{2}\/\d{2}\/\d{4}(?:\s+\d{2}h\d{2})?)/i',
+        '/(\d{2}\/\d{2}\/\d{4}(?:\s+\d{2}h\d{2})?)\s*(?:à|au)\s*\d{2}h\d{2}/i',
+    ]);
+    $location = firstMatchGroup($raw, [
+        '/(?:Emplacement|Lieu|Localisation)\s*[: ]+([^<]+)/i',
+        '/(?:Lieu\s*[: ]+|Localisation\s*[: ]+)([^<\n]+)/i',
+    ]);
+    $organizer = firstMatchGroup($raw, [
+        '/(?:Organisateur|Organisé par|Association|Service)\s*[: ]+([^<]+)/i',
+    ]);
+    $registrationStart = '';
+    $registrationEnd = '';
+    if (preg_match('/(?:Du\s*[: ]*|Inscriptions?\s*(?:ouvertes?|ouvert\s*es)?\s*(?:du|de)\s*[: ]*)(\d{2}\/\d{2}\/\d{4}(?:\s+\d{2}h\d{2})?)\s*(?:au|à)\s*(\d{2}\/\d{2}\/\d{4}(?:\s+\d{2}h\d{2})?)/i', $raw, $regMatch)) {
+        $registrationStart = $regMatch[1];
+        $registrationEnd = $regMatch[2];
+    }
+    $status = 'Non inscrit(e)';
+    if (preg_match('/Inscrit\(e\)/i', $raw)) {
+        $status = 'Inscrit(e)';
+    } elseif (preg_match('/Non inscrit\(e\)/i', $raw)) {
+        $status = 'Non inscrit(e)';
+    } elseif (preg_match('/Les inscriptions \/ désinscriptions pour cet événement sont terminées\./i', $raw)) {
+        $status = 'Inscriptions terminées';
+    }
+
+    $description = 'Aucune description disponible.';
+    if (preg_match('/(?:Description\s*(?:de\s*l[’\']?événement|de\s*l[’\']?événement|:\s*)|Présentation|Détail\s*de\s*l[’\']?événement)\s*(.*?)(?:<\/div>|<\/section>|<\/article>|<\/p>|$)/is', $raw, $descriptionMatch)) {
+        $description = normalizeText(strip_tags($descriptionMatch[1]));
+        if ($description === '') $description = 'Aucune description disponible.';
+    }
+
+    return [
+        'id' => (string) $eventId,
+        'title' => $title !== '' ? $title : 'Événement campus',
+        'url' => $url,
+        'eventDate' => $eventDate,
+        'registrationStart' => $registrationStart,
+        'registrationEnd' => $registrationEnd,
+        'registered' => stripos($status, 'Inscrit') !== false,
+        'status' => $status,
+        'location' => $location !== '' ? $location : 'À préciser',
+        'organizer' => $organizer !== '' ? $organizer : 'Réseau GES',
+        'description' => $description,
+    ];
+}
+
 function fetchMygesMarks(string $cookie): array {
     if ($cookie === '') return ['__upstream_status' => 401];
     $headers = ['Accept: text/xml, */*;q=0.01', 'X-Requested-With: XMLHttpRequest', 'Faces-Request: partial/ajax', 'Content-Type: application/x-www-form-urlencoded; charset=UTF-8', 'Cookie: ' . $cookie];
@@ -674,6 +855,8 @@ $routes = [
     'years' => '/me/years',
     'classes' => '/me/{year}/classes',
     'news' => '/rss/news',
+    'events' => '/common/events',
+    'event' => '/common/event/{id}',
     'planning' => envValue('MYGES_PLANNING_PATH', '/planning'),
     'grades' => envValue('MYGES_GRADES_PATH', '/grades'),
     'absences' => envValue('MYGES_ABSENCES_PATH', '/absences'),
@@ -709,6 +892,18 @@ if ($method !== 'GET' || !isset($routes[$resource])) respond(['error' => 'Ressou
 if ($resource === 'news') {
     $payload = fetchMygesNews();
     if (isset($payload['__upstream_status'])) respond(['error' => 'Actualités MyGES indisponibles.'], 502);
+    respond($payload);
+}
+if ($resource === 'events') {
+    $payload = fetchMygesEvents((string) ($_SESSION['myges_cookie'] ?? ''));
+    if (isset($payload['__upstream_status'])) respond(['error' => 'Événements campus MyGES indisponibles.'], 502);
+    respond($payload);
+}
+if ($resource === 'event') {
+    $eventId = (string) ($_GET['id'] ?? '');
+    if ($eventId === '') respond(['error' => 'Identifiant d’événement requis.'], 422);
+    $payload = fetchMygesEvent($eventId, (string) ($_SESSION['myges_cookie'] ?? ''));
+    if (isset($payload['__upstream_status'])) respond(['error' => 'Détails de l’événement indisponibles.'], 502);
     respond($payload);
 }
 if (empty($_SESSION['access_token'])) respond(['error' => 'Session expirée, veuillez vous reconnecter.'], 401);

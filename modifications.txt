@@ -1,9 +1,3 @@
-1. **Actualités**
-- Actualités générales du Réseau GES.
-- Actualités propres à l’école.
-- Pagination, lecture d’un article et compteur de nouveautés.
-- Source observée : `/common/news` et flux RSS.
-
 2. **Événements campus**
 
 - Liste des événements à venir et passés.

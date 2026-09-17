@@ -33,6 +33,7 @@ $menu = [
         'sous_items' => [
             ['label' => 'Absences', 'href' => 'absences.php'],
             ['label' => 'Documents', 'href' => 'documents.php'],
+            ['label' => 'Événements campus', 'href' => 'evenements.php'],
         ],
     ],
 ];
