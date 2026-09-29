@@ -8,7 +8,6 @@ async function request(resource, options = {}) {
         const url = new URL(API_URL);
         url.searchParams.set('resource', resource);
         Object.entries(options.query || {}).forEach(([key, value]) => url.searchParams.set(key, value));
-        url.searchParams.set('_fresh', `${Date.now()}-${Math.random().toString(36).slice(2)}`);
         const response = await fetch(url, {
             credentials: 'include',
             ...options,
@@ -18,6 +17,9 @@ async function request(resource, options = {}) {
         });
         const payload = await response.json().catch(() => ({}));
         if (!response.ok) {
+            if (response.status === 401 && resource !== 'login' && resource !== 'logout') {
+                window.dispatchEvent(new Event('myges:session-expired'));
+            }
             const error = new Error([payload.error, payload.diagnostic].filter(Boolean).join(' ') || 'Le serveur MyGES est indisponible.');
             error.status = response.status;
             throw error;

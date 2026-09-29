@@ -1,4 +1,9 @@
 document.addEventListener('DOMContentLoaded', () => {
+    window.addEventListener('myges:session-expired', () => {
+        window.mygesStorage.clearSession();
+        if (!window.location.pathname.endsWith('/login.php')) window.location.replace('login.php');
+    }, { once: true });
+
     const toastEl = document.getElementById('toast');
     let toastTimer;
     const toast = message => {

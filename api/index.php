@@ -1,12 +1,14 @@
 <?php
 declare(strict_types=1);
 
+ini_set('session.use_strict_mode', '1');
+ini_set('session.use_only_cookies', '1');
 session_set_cookie_params([
     'lifetime' => 2592000,
     'path' => '/',
     'httponly' => true,
     'secure' => $secureCookie = ((!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || strtolower(trim(explode(',', (string) ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? ''), 2)[0])) === 'https' || strtolower((string) ($_SERVER['HTTP_X_FORWARDED_SSL'] ?? '')) === 'on'),
-    'samesite' => $secureCookie ? 'None' : 'Lax',
+    'samesite' => 'Lax',
 ]);
 session_start();
 header('Content-Type: application/json; charset=utf-8');
@@ -36,7 +38,67 @@ function envValue(string $name, string $default = ''): string {
 
 function respond(mixed $data, int $status = 200): never {
     http_response_code($status);
-    echo json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    $json = json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    $resource = (string) ($_GET['resource'] ?? '');
+    $cacheTtls = ['news' => 600, 'messages' => 60, 'events' => 120, 'event' => 300, 'projects' => 180, 'planning' => 60, 'grades' => 120, 'absences' => 120, 'supports' => 300, 'documents' => 300];
+    if ($status === 200 && ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'GET' && isset($cacheTtls[$resource]) && is_array($data) && !isset($data['error']) && !isset($data['offline']) && is_string($json) && strlen($json) <= 524288) {
+        $query = $_GET;
+        unset($query['resource'], $query['_fresh']);
+        $cacheKey = hash('sha256', $resource . ':' . http_build_query($query));
+        $cache = is_array($_SESSION['api_cache'] ?? null) ? $_SESSION['api_cache'] : [];
+        $cache[$cacheKey] = ['expires' => time() + $cacheTtls[$resource], 'body' => $json];
+        foreach ($cache as $key => $entry) {
+            if (!is_array($entry) || ($entry['expires'] ?? 0) <= time()) unset($cache[$key]);
+        }
+        while (count($cache) > 10) array_shift($cache);
+        while (strlen(serialize($cache)) > 1048576 && $cache) array_shift($cache);
+        $_SESSION['api_cache'] = $cache;
+    }
+    echo is_string($json) ? $json : '{}';
+    exit;
+}
+
+function expireMygesSession(): void {
+    if (!empty($_SESSION['myges_cookie_jar'])) @unlink((string) $_SESSION['myges_cookie_jar']);
+    unset($_SESSION['access_token'], $_SESSION['myges_cookie'], $_SESSION['myges_cookie_jar'], $_SESSION['student'], $_SESSION['api_cache']);
+}
+
+function isSameOriginMutation(): bool {
+    if (strtolower((string) ($_SERVER['HTTP_SEC_FETCH_SITE'] ?? '')) === 'cross-site') return false;
+    $origin = (string) ($_SERVER['HTTP_ORIGIN'] ?? '');
+    if ($origin === '') return true;
+    $originParts = parse_url($origin);
+    $hostParts = parse_url('//' . (string) ($_SERVER['HTTP_HOST'] ?? ''));
+    if (!is_array($originParts) || !is_array($hostParts)) return false;
+    $originScheme = strtolower((string) ($originParts['scheme'] ?? ''));
+    $expectedScheme = !empty($GLOBALS['secureCookie']) ? 'https' : 'http';
+    $originPort = (int) ($originParts['port'] ?? ($originScheme === 'https' ? 443 : 80));
+    $hostPort = (int) ($hostParts['port'] ?? ($expectedScheme === 'https' ? 443 : 80));
+    return $originScheme === $expectedScheme
+        && strtolower((string) ($originParts['host'] ?? '')) === strtolower((string) ($hostParts['host'] ?? ''))
+        && $originPort === $hostPort;
+}
+
+function respondMygesFailure(array $payload, string $message): never {
+    $status = (int) ($payload['__upstream_status'] ?? 0);
+    $body = (string) ($payload['__upstream_body'] ?? '');
+    $authenticationPage = preg_match('/<title[^>]*>[^<]*(?:authentification|connexion|login)/iu', $body) === 1
+        || stripos($body, 'Authentification') !== false;
+    if (in_array($status, [401, 403], true) || $authenticationPage) {
+        expireMygesSession();
+        respond(['error' => 'Session MyGES expirée, veuillez vous reconnecter.'], 401);
+    }
+    respond(['error' => $message], 502);
+}
+
+function respondCachedApiResult(string $resource): bool {
+    if ($resource !== 'news' && empty($_SESSION['access_token'])) return false;
+    $query = $_GET;
+    unset($query['resource'], $query['_fresh']);
+    $cacheKey = hash('sha256', $resource . ':' . http_build_query($query));
+    $entry = $_SESSION['api_cache'][$cacheKey] ?? null;
+    if (!is_array($entry) || ($entry['expires'] ?? 0) <= time() || !is_string($entry['body'] ?? null)) return false;
+    echo $entry['body'];
     exit;
 }
 
@@ -138,7 +200,10 @@ function upstream(string $path, ?string $token = null, array $query = [], bool $
     $status = (int) curl_getinfo($handle, CURLINFO_HTTP_CODE);
     curl_close($handle);
     if ($raw === false) respond(['error' => 'Le service MyGES est temporairement injoignable.', 'diagnostic' => $error ?: 'Erreur réseau cURL.'], 502);
-    if ($status === 401 || $status === 403) respond(['error' => 'Session MyGES expirée, veuillez vous reconnecter.'], 401);
+    if ($status === 401 || $status === 403) {
+        expireMygesSession();
+        respond(['error' => 'Session MyGES expirée, veuillez vous reconnecter.'], 401);
+    }
     if ($status === 204) return [];
     if ($retryableBadRequest && in_array($status, [400, 404, 405, 500, 502, 503], true)) return ['__upstream_status' => $status, '__upstream_body' => $raw];
     $normalizedRaw = ltrim($raw, "\xEF\xBB\xBF \t\r\n");
@@ -221,6 +286,14 @@ function normalizeText(string $value): string {
     return trim((preg_replace('/\s+/', ' ', $value) ?? $value));
 }
 
+function isMygesAuthenticationPage(string $html): bool {
+    if (preg_match('/<title[^>]*>(.*?)<\/title>/is', $html, $match)) {
+        if (preg_match('/authentification|connexion|login|central authentication/i', strip_tags($match[1]))) return true;
+    }
+    return preg_match('/<form[^>]*(?:login|auth)/i', $html) === 1
+        && preg_match('/type=["\']password["\']/i', $html) === 1;
+}
+
 function fetchMygesMessages(string $cookie): array {
     if ($cookie === '') return ['__upstream_status' => 401];
     $url = 'https://myges.fr/common/user-message';
@@ -249,6 +322,7 @@ function fetchMygesMessages(string $cookie): array {
     if ($raw === '' || $status < 200 || $status >= 300) {
         return ['__upstream_status' => $status ?: 502];
     }
+    if (isMygesAuthenticationPage($raw)) return ['__upstream_status' => 401, '__upstream_body' => 'Authentification'];
 
     $dom = new DOMDocument();
     @$dom->loadHTML('<?xml encoding="UTF-8">' . $raw);
@@ -401,6 +475,7 @@ function fetchMygesProjects(string $cookie, ?string $selectedYear = null): array
     if ($raw === '' || $status < 200 || $status >= 300) {
         return ['__upstream_status' => $status ?: 502, '__upstream_body' => $raw];
     }
+    if (isMygesAuthenticationPage($raw)) return ['__upstream_status' => 401, '__upstream_body' => 'Authentification'];
 
     $dom = new DOMDocument();
     @$dom->loadHTML('<?xml encoding="UTF-8">' . $raw);
@@ -527,6 +602,7 @@ function fetchMygesEvents(string $cookie): array {
     if ($raw === '' || $status < 200 || $status >= 300) {
         return ['__upstream_status' => $status ?: 502, '__upstream_body' => $raw];
     }
+    if (isMygesAuthenticationPage($raw)) return ['__upstream_status' => 401, '__upstream_body' => 'Authentification'];
     $dom = new DOMDocument();
     @$dom->loadHTML('<?xml encoding="UTF-8">' . $raw);
     $events = [];
@@ -604,6 +680,7 @@ function fetchMygesEvent(string $eventId, string $cookie): array {
     if ($raw === '' || $status < 200 || $status >= 300) {
         return ['__upstream_status' => $status ?: 502, '__upstream_body' => $raw];
     }
+    if (isMygesAuthenticationPage($raw)) return ['__upstream_status' => 401, '__upstream_body' => 'Authentification'];
 
     $dom = new DOMDocument();
     @$dom->loadHTML('<?xml encoding="UTF-8">' . $raw);
@@ -673,6 +750,7 @@ function fetchMygesMarks(string $cookie): array {
     $page = (string) curl_exec($handle);
     $status = (int) curl_getinfo($handle, CURLINFO_HTTP_CODE);
     curl_close($handle);
+    if (isMygesAuthenticationPage($page)) return ['__upstream_status' => 401, '__upstream_body' => 'Authentification'];
     if ($status < 200 || $status >= 300 || !preg_match('/name="javax.faces.ViewState"[^>]+value="([^"]+)"/', $page, $stateMatch)) {
         $pageTitle = '';
         if (preg_match('/<title[^>]*>(.*?)<\/title>/is', $page, $titleMatch)) $pageTitle = trim(preg_replace('/\s+/', ' ', strip_tags($titleMatch[1])));
@@ -726,6 +804,7 @@ function fetchMygesMarks(string $cookie): array {
     $response = (string) curl_exec($handle);
     $status = (int) curl_getinfo($handle, CURLINFO_HTTP_CODE);
     curl_close($handle);
+    if (isMygesAuthenticationPage($response)) return ['__upstream_status' => 401, '__upstream_body' => 'Authentification'];
         if (preg_match('/<update[^>]+id="javax\.faces\.ViewState"[^>]*><!\[CDATA\[(.*?)\]\]><\/update>/s', $response, $viewStateMatch)) {
             $viewState = trim($viewStateMatch[1]);
         } elseif (preg_match('/name="javax\.faces\.ViewState"[^>]+value="([^"]+)"/', $response, $viewStateMatch)) {
@@ -776,7 +855,7 @@ function fetchMygesAbsences(string $cookie): array {
     $status = (int) curl_getinfo($handle, CURLINFO_HTTP_CODE);
     curl_close($handle);
     if ($status < 200 || $status >= 300) return ['__upstream_status' => $status ?: 502];
-    if (preg_match('/<title[^>]*>(.*?)<\/title>/is', $page, $titleMatch) && stripos($titleMatch[1], 'authent') !== false) return ['__upstream_status' => 401, '__upstream_body' => 'Authentification'];
+    if (isMygesAuthenticationPage($page)) return ['__upstream_status' => 401, '__upstream_body' => 'Authentification'];
     $dom = new DOMDocument();
     @$dom->loadHTML('<?xml encoding="UTF-8">' . $page);
     $periods = [];
@@ -897,6 +976,7 @@ function fetchMygesDocuments(string $cookie): array {
     $status = (int) curl_getinfo($handle, CURLINFO_HTTP_CODE);
     curl_close($handle);
     if ($status < 200 || $status >= 300) return ['__upstream_status' => $status ?: 502];
+    if (isMygesAuthenticationPage($page)) return ['__upstream_status' => 401, '__upstream_body' => 'Authentification'];
     $_SESSION['myges_cookie'] = $cookie;
     $dom = new DOMDocument();
     @$dom->loadHTML('<?xml encoding="UTF-8">' . $page);
@@ -1020,6 +1100,7 @@ function fetchMygesSupports(string $cookie): array {
     };
     [$status, $page] = $fetch('GET');
     if ($status < 200 || $status >= 300) return ['__upstream_status' => $status ?: 502];
+    if (isMygesAuthenticationPage($page)) return ['__upstream_status' => 401, '__upstream_body' => 'Authentification'];
     $dom = new DOMDocument();
     @$dom->loadHTML('<?xml encoding="UTF-8">' . $page);
     $viewState = '';
@@ -1146,10 +1227,12 @@ $routes = [
     'document' => '/private',
 ];
 
+if ($method === 'POST' && !isSameOriginMutation()) respond(['error' => 'Requête refusée.'], 403);
 if ($resource === 'login' && $method === 'POST') {
     $body = requestBody();
     if (empty($body['username']) || empty($body['password'])) respond(['error' => 'Identifiant et mot de passe requis.'], 422);
     $token = authorizeUser((string) $body['username'], (string) $body['password']);
+    expireMygesSession();
     session_regenerate_id(true);
     $_SESSION['access_token'] = $token;
     $webSession = authorizeMygesWeb((string) $body['username'], (string) $body['password']);
@@ -1170,6 +1253,7 @@ if ($resource === 'logout' && $method === 'POST') {
     respond(['authenticated' => false]);
 }
 if ($method !== 'GET' || !isset($routes[$resource])) respond(['error' => 'Ressource inconnue.'], 404);
+respondCachedApiResult((string) $resource);
 if ($resource === 'news') {
     $payload = fetchMygesNews();
     if (isset($payload['__upstream_status'])) respond(['error' => 'Actualités MyGES indisponibles.'], 502);
@@ -1177,36 +1261,36 @@ if ($resource === 'news') {
 }
 if ($resource === 'messages') {
     $payload = fetchMygesMessages((string) ($_SESSION['myges_cookie'] ?? ''));
-    if (isset($payload['__upstream_status'])) respond(['error' => 'Messages MyGES indisponibles.'], 502);
+    if (isset($payload['__upstream_status'])) respondMygesFailure($payload, 'Messages MyGES indisponibles.');
     respond($payload);
 }
 if ($resource === 'events') {
     $payload = fetchMygesEvents((string) ($_SESSION['myges_cookie'] ?? ''));
-    if (isset($payload['__upstream_status'])) respond(['error' => 'Événements campus MyGES indisponibles.'], 502);
+    if (isset($payload['__upstream_status'])) respondMygesFailure($payload, 'Événements campus MyGES indisponibles.');
     respond($payload);
 }
 if ($resource === 'event') {
     $eventId = (string) ($_GET['id'] ?? '');
     if ($eventId === '') respond(['error' => 'Identifiant d’événement requis.'], 422);
     $payload = fetchMygesEvent($eventId, (string) ($_SESSION['myges_cookie'] ?? ''));
-    if (isset($payload['__upstream_status'])) respond(['error' => 'Détails de l’événement indisponibles.'], 502);
+    if (isset($payload['__upstream_status'])) respondMygesFailure($payload, 'Détails de l’événement indisponibles.');
     respond($payload);
 }
 if ($resource === 'projects') {
     $year = (string) ($_GET['year'] ?? '');
     $payload = fetchMygesProjects((string) ($_SESSION['myges_cookie'] ?? ''), $year !== '' ? $year : null);
-    if (isset($payload['__upstream_status'])) respond(['error' => 'Projets pédagogiques MyGES indisponibles.'], 502);
+    if (isset($payload['__upstream_status'])) respondMygesFailure($payload, 'Projets pédagogiques MyGES indisponibles.');
     respond($payload);
 }
 if (empty($_SESSION['access_token'])) respond(['error' => 'Session expirée, veuillez vous reconnecter.'], 401);
 if ($resource === 'documents') {
     $payload = fetchMygesDocuments((string) ($_SESSION['myges_cookie'] ?? ''));
-    if (isset($payload['__upstream_status'])) respond(['error' => 'Documents MyGES indisponibles.'], 502);
+    if (isset($payload['__upstream_status'])) respondMygesFailure($payload, 'Documents MyGES indisponibles.');
     respond($payload);
 }
 if ($resource === 'supports') {
     $payload = fetchMygesSupports((string) ($_SESSION['myges_cookie'] ?? ''));
-    if (isset($payload['__upstream_status'])) respond(['error' => 'Supports de cours MyGES indisponibles.'], 502);
+    if (isset($payload['__upstream_status'])) respondMygesFailure($payload, 'Supports de cours MyGES indisponibles.');
     respond($payload);
 }
 if ($resource === 'document') {
@@ -1266,8 +1350,8 @@ if ($resource === 'grades' && !empty($_SESSION['myges_cookie'])) {
     if (isset($payload['__upstream_status'])) {
         $authenticationPage = str_contains((string) ($payload['__upstream_body'] ?? ''), 'Authentification');
         if ($authenticationPage || in_array((int) $payload['__upstream_status'], [401, 403], true)) {
-            if (!empty($_SESSION['myges_cookie_jar'])) @unlink((string) $_SESSION['myges_cookie_jar']);
-            unset($_SESSION['myges_cookie'], $_SESSION['myges_cookie_jar']);
+            expireMygesSession();
+            respond(['error' => 'Session MyGES expirée, veuillez vous reconnecter.'], 401);
         }
     }
     else respond($payload);
@@ -1275,6 +1359,10 @@ if ($resource === 'grades' && !empty($_SESSION['myges_cookie'])) {
 if ($resource === 'absences' && !empty($_SESSION['myges_cookie'])) {
     $payload = fetchMygesAbsences((string) $_SESSION['myges_cookie']);
     if (!isset($payload['__upstream_status'])) respond($payload);
+    if (in_array((int) $payload['__upstream_status'], [401, 403], true) || stripos((string) ($payload['__upstream_body'] ?? ''), 'Authentification') !== false) {
+        expireMygesSession();
+        respond(['error' => 'Session MyGES expirée, veuillez vous reconnecter.'], 401);
+    }
 }
 $path = str_replace('{year}', date('Y'), $routes[$resource]);
 $retryable = in_array($resource, ['planning', 'grades', 'absences'], true);
