@@ -54,6 +54,9 @@ function respond(mixed $data, int $status = 200): never {
         while (strlen(serialize($cache)) > 1048576 && $cache) array_shift($cache);
         $_SESSION['api_cache'] = $cache;
     }
+    if ($status === 200 && $resource === 'news' && is_array($data) && !isset($data['error']) && is_string($json) && strlen($json) <= 524288) {
+        storePublicNewsCache($json);
+    }
     echo is_string($json) ? $json : '{}';
     exit;
 }
@@ -100,6 +103,74 @@ function respondCachedApiResult(string $resource): bool {
     if (!is_array($entry) || ($entry['expires'] ?? 0) <= time() || !is_string($entry['body'] ?? null)) return false;
     echo $entry['body'];
     exit;
+}
+
+function privateRuntimeDirectory(): ?string {
+    $root = realpath(dirname(__DIR__)) ?: dirname(__DIR__);
+    $directory = sys_get_temp_dir() . '/myges-runtime-' . substr(hash('sha256', $root), 0, 24);
+    if (!is_dir($directory) && !@mkdir($directory, 0700) && !is_dir($directory)) return null;
+    $permissions = @fileperms($directory);
+    if (is_link($directory) || $permissions === false || ($permissions & 0077) !== 0 || !is_writable($directory)) return null;
+    if (function_exists('posix_geteuid') && @fileowner($directory) !== posix_geteuid()) return null;
+    return $directory;
+}
+
+function publicNewsCachePath(): ?string {
+    $directory = privateRuntimeDirectory();
+    return $directory === null ? null : $directory . '/news.json';
+}
+
+function readPublicNewsCache(): ?string {
+    $path = publicNewsCachePath();
+    if ($path === null) return null;
+    $handle = @fopen($path, 'rb');
+    if ($handle === false) return null;
+    if (!flock($handle, LOCK_SH)) { fclose($handle); return null; }
+    $stat = fstat($handle);
+    $body = $stat && $stat['size'] <= 524288 && time() - $stat['mtime'] <= 600
+        ? stream_get_contents($handle)
+        : false;
+    flock($handle, LOCK_UN);
+    fclose($handle);
+    if (!is_string($body) || json_decode($body, true) === null) return null;
+    return $body;
+}
+
+function storePublicNewsCache(string $body): void {
+    $path = publicNewsCachePath();
+    if ($path === null) return;
+    $handle = @fopen($path, 'c');
+    if ($handle === false || !flock($handle, LOCK_EX)) {
+        if (is_resource($handle)) fclose($handle);
+        return;
+    }
+    ftruncate($handle, 0);
+    rewind($handle);
+    fwrite($handle, $body);
+    fflush($handle);
+    @chmod($path, 0600);
+    flock($handle, LOCK_UN);
+    fclose($handle);
+}
+
+function limitUpstreamConcurrency(): void {
+    $directory = privateRuntimeDirectory();
+    if ($directory === null) return;
+    $maxSlots = max(1, min(8, (int) envValue('MYGES_MAX_UPSTREAM_CONCURRENCY', '3')));
+    for ($slot = 0; $slot < $maxSlots; $slot++) {
+        $handle = @fopen($directory . '/upstream-' . $slot . '.lock', 'c');
+        if ($handle === false) return;
+        if (flock($handle, LOCK_EX | LOCK_NB)) {
+            register_shutdown_function(static function () use ($handle): void {
+                flock($handle, LOCK_UN);
+                fclose($handle);
+            });
+            return;
+        }
+        fclose($handle);
+    }
+    header('Retry-After: 2');
+    respond(['error' => 'Le service est temporairement chargé. Réessayez dans quelques instants.'], 503);
 }
 
 function requestBody(): array {
@@ -1231,6 +1302,7 @@ if ($method === 'POST' && !isSameOriginMutation()) respond(['error' => 'Requête
 if ($resource === 'login' && $method === 'POST') {
     $body = requestBody();
     if (empty($body['username']) || empty($body['password'])) respond(['error' => 'Identifiant et mot de passe requis.'], 422);
+    limitUpstreamConcurrency();
     $token = authorizeUser((string) $body['username'], (string) $body['password']);
     expireMygesSession();
     session_regenerate_id(true);
@@ -1253,7 +1325,12 @@ if ($resource === 'logout' && $method === 'POST') {
     respond(['authenticated' => false]);
 }
 if ($method !== 'GET' || !isset($routes[$resource])) respond(['error' => 'Ressource inconnue.'], 404);
+if ($resource === 'news') {
+    $cachedNews = readPublicNewsCache();
+    if (is_string($cachedNews)) { echo $cachedNews; exit; }
+}
 respondCachedApiResult((string) $resource);
+limitUpstreamConcurrency();
 if ($resource === 'news') {
     $payload = fetchMygesNews();
     if (isset($payload['__upstream_status'])) respond(['error' => 'Actualités MyGES indisponibles.'], 502);

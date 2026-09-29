@@ -1,4 +1,4 @@
-const CACHE_NAME = 'myges-shell-v7';
+const CACHE_NAME = 'myges-shell-v8';
 const STATIC_ASSETS = [
     './assets/css/style.css',
     './assets/js/api.js',
@@ -28,16 +28,23 @@ self.addEventListener('fetch', event => {
     if (event.request.method !== 'GET' || requestUrl.origin !== self.location.origin || requestUrl.pathname.includes('/api/') || !isStaticAsset) return;
 
     event.respondWith((async () => {
+        let cache;
+        try {
+            cache = await caches.open(CACHE_NAME);
+            const cached = await cache.match(event.request);
+            if (cached) return cached;
+        } catch {}
+
         try {
             const response = await fetch(event.request);
-            if (response.ok && requestUrl.origin === self.location.origin) {
-                const cache = await caches.open(CACHE_NAME);
-                await cache.put(event.request, response.clone());
-            }
+            if (response.ok && cache) await cache.put(event.request, response.clone()).catch(() => {});
             return response;
         } catch {
-            const cached = await caches.match(event.request);
-            return cached || caches.match('./login.php');
+            if (cache) {
+                const cached = await cache.match(event.request).catch(() => undefined);
+                if (cached) return cached;
+            }
+            return await caches.match('./login.php');
         }
     })());
 });

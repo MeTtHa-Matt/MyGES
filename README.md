@@ -72,10 +72,13 @@ MYGES_ABSENCES_PATH=/me/{year}/absences
 MYGES_SUPPORTS_PATH=/me/{year}/courses
 MYGES_DOWNLOAD_BASE_URL=https://ges-dl.kordis.fr
 MYGES_CLIENT_ID=skolae-app
+MYGES_MAX_UPSTREAM_CONCURRENCY=3
 SESSION_SECRET=une-valeur-longue-et-aleatoire
 ```
 
 Les chemins exacts et les identifiants client doivent être confirmés par l’intégrateur MyGES/Skolae. Les valeurs présentes dans `.env.example` sont des valeurs de départ, pas des identifiants garantis pour tous les établissements.
+
+Le proxy met en cache brièvement les lectures réussies dans chaque session PHP et limite à trois le nombre d’appels MyGES simultanés pour cette installation. `MYGES_MAX_UPSTREAM_CONCURRENCY` peut être réglé entre 1 et 8 selon les capacités du pool PHP; quand le plafond est atteint, le proxy répond `503` avec `Retry-After`. Le répertoire temporaire PHP doit permettre `flock` pour activer cette limite. Les fichiers statiques déjà installés sont servis depuis le cache du Service Worker.
 
 Ne versionnez jamais `.env`, un mot de passe, un jeton d’accès ou une clé secrète. En production, préférez des variables d’environnement injectées par PHP-FPM ou par le serveur d’exécution.
 
