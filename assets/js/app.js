@@ -1210,10 +1210,10 @@ document.addEventListener('DOMContentLoaded', () => {
         button.disabled = true;
         appFrame?.classList.add('deconnexion-en-cours');
         animation?.setAttribute('aria-hidden', 'false');
+        window.mygesStorage.clearSession();
         await window.mygesApi.logout().catch(() => {});
         const remaining = 750 - (performance.now() - startedAt);
         if (remaining > 0) await new Promise(resolve => setTimeout(resolve, remaining));
-        window.mygesStorage.clearSession();
         window.location.href = 'login.php';
     });
     document.getElementById('btn-deconnexion')?.addEventListener('click', openLogoutModal);

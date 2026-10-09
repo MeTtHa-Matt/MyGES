@@ -35,7 +35,7 @@ $titre_page = 'Support de cours';
     <div class="toast" id="toast"></div>
 </div>
 <script src="assets/js/cache-reset.js?v=20260915-01"></script>
-<script src="assets/js/api.js?v=20260915-02"></script>
+<script src="assets/js/api.js?v=20261009-01"></script>
 <script src="assets/js/storage.js?v=20260915-08"></script>
 <script src="assets/js/app.js?v=20260915-09"></script>
 <script>

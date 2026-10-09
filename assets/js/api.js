@@ -1,7 +1,31 @@
 const REQUEST_TIMEOUT = 12000;
 const API_URL = new URL('api/index.php', document.baseURI);
+let rememberedLoginPromise = null;
 
-async function request(resource, options = {}) {
+function reauthenticateRememberedUser() {
+    if (localStorage.getItem('myges-authenticated') !== 'true' || !window.PasswordCredential || !navigator.credentials?.get) {
+        return Promise.resolve(false);
+    }
+    if (!rememberedLoginPromise) {
+        rememberedLoginPromise = (async () => {
+            try {
+                const credential = await navigator.credentials.get({ password: true, mediation: 'silent' });
+                if (!credential || credential.type !== 'password' || !credential.password) return false;
+                await request('login', {
+                    method: 'POST',
+                    body: JSON.stringify({ username: credential.id, password: credential.password })
+                }, false);
+                window.mygesStorage?.markSession(true);
+                return true;
+            } catch {
+                return false;
+            }
+        })().finally(() => { rememberedLoginPromise = null; });
+    }
+    return rememberedLoginPromise;
+}
+
+async function request(resource, options = {}, retryAfterReauthentication = true) {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), options.timeout ?? REQUEST_TIMEOUT);
     try {
@@ -18,6 +42,9 @@ async function request(resource, options = {}) {
         const payload = await response.json().catch(() => ({}));
         if (!response.ok) {
             if (response.status === 401 && resource !== 'login' && resource !== 'logout') {
+                if (retryAfterReauthentication && await reauthenticateRememberedUser()) {
+                    return request(resource, options, false);
+                }
                 window.dispatchEvent(new Event('myges:session-expired'));
             }
             const error = new Error([payload.error, payload.diagnostic].filter(Boolean).join(' ') || 'Le serveur MyGES est indisponible.');
