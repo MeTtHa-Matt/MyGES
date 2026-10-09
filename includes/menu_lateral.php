@@ -9,7 +9,7 @@
 <nav class="rail-lateral">
     <button type="button" class="icon-btn" id="btn-fermer-menu-rail" aria-label="Fermer le menu"><img src="assets/img/icone-menu.svg" alt=""></button>
     <div class="separateur-rail"></div>
-    <span class="icone-motif"><?= icone_motif() ?></span>
+    <a href="https://ges-cas.kordis.fr/login?service=https%3A%2F%2Fmyges.fr%2Fj_spring_cas_security_check"><span class="icone-motif"><?= icone_motif() ?></span></a>
     <div class="separateur-rail separateur-rail-bas"></div>
     <button type="button" class="icon-btn icone-pouvoir" id="btn-deconnexion" aria-label="Déconnexion"><?= icone_pouvoir() ?></button>
 </nav>
