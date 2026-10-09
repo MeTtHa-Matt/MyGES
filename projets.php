@@ -49,9 +49,9 @@ $titre_page = 'Projets pédagogiques';
 </div>
 
 <script src="assets/js/cache-reset.js?v=20260917-03"></script>
-<script src="assets/js/api.js?v=20261009-01"></script>
+<script src="assets/js/api.js?v=20261009-02"></script>
 <script src="assets/js/storage.js?v=20260917-03"></script>
-<script src="assets/js/app.js?v=20260917-03"></script>
+<script src="assets/js/app.js?v=20261009-02"></script>
 <script>
 (function () {
     const list = document.getElementById('myges-projects-list');

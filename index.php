@@ -117,8 +117,8 @@ $prochains_cours = array_slice($prochains_cours, 0, 3);
     const NOM_ETUDIANT = <?= json_encode($etudiant['nom_complet'], JSON_UNESCAPED_UNICODE) ?>;
 </script>
 <script src="assets/js/cache-reset.js?v=20260917-02"></script>
-<script src="assets/js/api.js?v=20261009-01"></script>
+<script src="assets/js/api.js?v=20261009-02"></script>
 <script src="assets/js/storage.js?v=20260917-02"></script>
-<script src="assets/js/app.js?v=20260917-05"></script>
+<script src="assets/js/app.js?v=20261009-02"></script>
 </body>
 </html>

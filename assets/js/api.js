@@ -3,13 +3,21 @@ const API_URL = new URL('api/index.php', document.baseURI);
 let rememberedLoginPromise = null;
 
 function reauthenticateRememberedUser() {
-    if (localStorage.getItem('myges-authenticated') !== 'true' || !window.PasswordCredential || !navigator.credentials?.get) {
+    if (localStorage.getItem('myges-authenticated') !== 'true' || !navigator.credentials?.get) {
         return Promise.resolve(false);
     }
     if (!rememberedLoginPromise) {
         rememberedLoginPromise = (async () => {
             try {
-                const credential = await navigator.credentials.get({ password: true, mediation: 'silent' });
+                let credential;
+                try {
+                    credential = await navigator.credentials.get({ password: true, mediation: 'silent' });
+                } catch {}
+                if (!credential) {
+                    try {
+                        credential = await navigator.credentials.get({ password: true, mediation: 'optional' });
+                    } catch {}
+                }
                 if (!credential || credential.type !== 'password' || !credential.password) return false;
                 await request('login', {
                     method: 'POST',

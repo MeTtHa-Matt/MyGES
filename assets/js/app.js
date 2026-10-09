@@ -1409,9 +1409,13 @@ document.addEventListener('DOMContentLoaded', () => {
         savedCredential = null;
     };
     const findSavedCredential = async () => {
-        if (!login || !window.PasswordCredential || !navigator.credentials?.get) return;
+        if (!login || !navigator.credentials?.get) return;
         try {
-            const credential = await navigator.credentials.get({ password: true, mediation: 'silent' });
+            let credential;
+            try {
+                credential = await navigator.credentials.get({ password: true, mediation: 'silent' });
+            } catch {}
+            if (!credential) credential = await navigator.credentials.get({ password: true, mediation: 'optional' });
             if (!credential || credential.type !== 'password' || !credential.password) return;
             savedCredential = credential;
             if (credentialsInvite) {
@@ -1456,8 +1460,13 @@ document.addEventListener('DOMContentLoaded', () => {
             } catch (profileError) {
                 if (profileError.status === 401) throw new Error('La session serveur n’a pas pu être confirmée. Veuillez réessayer.');
             }
-            if (rememberMe && window.PasswordCredential && navigator.credentials?.store) {
-                navigator.credentials.store(new PasswordCredential({ id: login.identifiant.value, password: login.mot_de_passe.value })).catch(() => {});
+            if (rememberMe && navigator.credentials?.store) {
+                try {
+                    const savedCredential = window.PasswordCredential
+                        ? new window.PasswordCredential({ id: login.identifiant.value, password: login.mot_de_passe.value })
+                        : await navigator.credentials.create?.({ password: { id: login.identifiant.value, password: login.mot_de_passe.value } });
+                    if (savedCredential) navigator.credentials.store(savedCredential).catch(() => {});
+                } catch {}
             }
             loginPage?.classList.remove('connexion-verification');
             loginPage?.classList.add('connexion-en-cours', 'connexion-reussie');

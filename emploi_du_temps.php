@@ -130,6 +130,6 @@ $cours_du_jour = $emploi_du_temps[$date_affichee] ?? [];
 <script src="assets/js/cache-reset.js?v=20260917-02"></script>
 <script src="assets/js/api.js?v=20261009-02"></script>
 <script src="assets/js/storage.js?v=20260917-02"></script>
-<script src="assets/js/app.js?v=20261009-08"></script>
+<script src="assets/js/app.js?v=20261009-02"></script>
 </body>
 </html>
