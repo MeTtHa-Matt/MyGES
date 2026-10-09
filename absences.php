@@ -101,8 +101,8 @@ $duree_totale = '00h00';
 </div>
 
 <script src="assets/js/cache-reset.js?v=20260914-8"></script>
-<script src="assets/js/api.js?v=20261009-02"></script>
+<script src="assets/js/api.js?v=20261009-03"></script>
 <script src="assets/js/storage.js?v=20260915-08"></script>
-<script src="assets/js/app.js?v=20261009-02"></script>
+<script src="assets/js/app.js?v=20261009-03"></script>
 </body>
 </html>

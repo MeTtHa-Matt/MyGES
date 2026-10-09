@@ -3575,61 +3575,6 @@ hr.separateur {
     0% { opacity: .8; transform: scale(.7); }
     100% { opacity: 0; transform: scale(1.55); }
 }
-.invite-identifiants {
-    position: fixed;
-    inset: 0;
-    z-index: 30;
-    display: grid;
-    place-items: center;
-    padding: 20px;
-    background: rgba(16,42,67,.3);
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity .25s ease;
-}
-.invite-identifiants.visible { opacity: 1; pointer-events: auto; }
-.invite-identifiants-boite {
-    width: min(100%, 360px);
-    padding: 26px 24px 22px;
-    border-radius: 20px;
-    background: var(--blanc);
-    box-shadow: 0 24px 70px rgba(16,42,67,.28);
-    text-align: center;
-    transform: translateY(14px) scale(.96);
-    transition: transform .35s cubic-bezier(.2,.8,.2,1);
-}
-.invite-identifiants.visible .invite-identifiants-boite { transform: translateY(0) scale(1); }
-.invite-identifiants-icone {
-    display: grid;
-    place-items: center;
-    width: 48px;
-    height: 48px;
-    margin: 0 auto 14px;
-    border-radius: 14px;
-    background: var(--corail-clair);
-    font-size: 22px;
-}
-.invite-identifiants h2 { margin: 0 0 8px; font-size: 18px; }
-.invite-identifiants p { margin: 0 0 20px; color: var(--texte-clair); font-size: 13px; line-height: 1.45; }
-.invite-identifiants-actions { display: flex; gap: 10px; }
-.invite-identifiants-actions button {
-    flex: 1;
-    min-height: 44px;
-    border: 0;
-    border-radius: 11px;
-    font: inherit;
-    font-size: 13px;
-    font-weight: 700;
-}
-.btn-invite-secondaire { background: #f2f4f6; color: var(--texte); }
-.btn-invite-principal { background: var(--corail); color: var(--blanc); }
-.identifiants-remplis input { animation: champ-rempli .55s ease both; }
-.identifiants-remplis .champ-login:nth-child(2) input { animation-delay: .08s; }
-@keyframes champ-rempli {
-    0% { box-shadow: 0 0 0 0 rgba(255,85,90,0); }
-    45% { box-shadow: 0 0 0 4px rgba(255,85,90,.2); }
-    100% { box-shadow: 0 0 0 0 rgba(255,85,90,0); }
-}
 .logo-login {
     width: 58px;
     height: 58px;

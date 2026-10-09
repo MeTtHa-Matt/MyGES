@@ -9,15 +9,7 @@ function reauthenticateRememberedUser() {
     if (!rememberedLoginPromise) {
         rememberedLoginPromise = (async () => {
             try {
-                let credential;
-                try {
-                    credential = await navigator.credentials.get({ password: true, mediation: 'silent' });
-                } catch {}
-                if (!credential) {
-                    try {
-                        credential = await navigator.credentials.get({ password: true, mediation: 'optional' });
-                    } catch {}
-                }
+                const credential = await navigator.credentials.get({ password: true, mediation: 'silent' });
                 if (!credential || credential.type !== 'password' || !credential.password) return false;
                 await request('login', {
                     method: 'POST',

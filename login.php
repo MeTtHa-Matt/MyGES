@@ -46,17 +46,6 @@ require __DIR__ . '/includes/data.php';
 
         <p class="note-demo" id="login-error" role="alert" hidden></p>
     </div>
-    <div class="invite-identifiants" id="invite-identifiants" aria-hidden="true" hidden>
-        <div class="invite-identifiants-boite" role="dialog" aria-modal="true" aria-labelledby="invite-identifiants-titre">
-            <div class="invite-identifiants-icone" aria-hidden="true">&#128273;</div>
-            <h2 id="invite-identifiants-titre">Retrouver votre connexion&nbsp;?</h2>
-            <p>Un identifiant enregistré sur cet appareil est disponible pour MyGES.</p>
-            <div class="invite-identifiants-actions">
-                <button type="button" class="btn-invite-secondaire" id="refuser-identifiants">Plus tard</button>
-                <button type="button" class="btn-invite-principal" id="utiliser-identifiants">Utiliser</button>
-            </div>
-        </div>
-    </div>
     <div class="animation-connexion" id="animation-connexion" aria-hidden="true">
         <div class="connexion-sceau" aria-hidden="true"><span>✓</span></div>
         <p>Connexion réussie</p>
@@ -64,8 +53,8 @@ require __DIR__ . '/includes/data.php';
     <div class="toast" id="toast"></div>
 </div>
 <script src="assets/js/cache-reset.js?v=20260917-02"></script>
-<script src="assets/js/api.js?v=20261009-02"></script>
+<script src="assets/js/api.js?v=20261009-03"></script>
 <script src="assets/js/storage.js?v=20260917-02"></script>
-<script src="assets/js/app.js?v=20261009-02"></script>
+<script src="assets/js/app.js?v=20261009-03"></script>
 </body>
 </html>

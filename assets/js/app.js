@@ -1,5 +1,6 @@
 document.addEventListener('DOMContentLoaded', () => {
     window.addEventListener('myges:session-expired', () => {
+        if (!window.location.pathname.endsWith('/login.php')) sessionStorage.setItem('myges-auto-login-pending', 'true');
         window.mygesStorage.clearSession();
         if (!window.location.pathname.endsWith('/login.php')) window.location.replace('login.php');
     }, { once: true });
@@ -1398,47 +1399,19 @@ document.addEventListener('DOMContentLoaded', () => {
         passwordToggle.setAttribute('aria-pressed', String(!isVisible));
         passwordToggle.setAttribute('aria-label', isVisible ? 'Afficher le mot de passe' : 'Masquer le mot de passe');
     });
-    const credentialsInvite = document.getElementById('invite-identifiants');
-    const useCredentials = document.getElementById('utiliser-identifiants');
-    const declineCredentials = document.getElementById('refuser-identifiants');
-    let savedCredential = null;
-    const closeCredentialsInvite = () => {
-        credentialsInvite?.classList.remove('visible');
-        credentialsInvite?.setAttribute('aria-hidden', 'true');
-        if (credentialsInvite) credentialsInvite.hidden = true;
-        savedCredential = null;
-    };
     const findSavedCredential = async () => {
-        if (!login || !navigator.credentials?.get) return;
+        if (!login || sessionStorage.getItem('myges-auto-login-pending') !== 'true') return;
+        sessionStorage.removeItem('myges-auto-login-pending');
+        if (!navigator.credentials?.get) return;
         try {
-            let credential;
-            try {
-                credential = await navigator.credentials.get({ password: true, mediation: 'silent' });
-            } catch {}
-            if (!credential) credential = await navigator.credentials.get({ password: true, mediation: 'optional' });
+            const credential = await navigator.credentials.get({ password: true, mediation: 'silent' });
             if (!credential || credential.type !== 'password' || !credential.password) return;
-            savedCredential = credential;
-            if (credentialsInvite) {
-                credentialsInvite.hidden = false;
-                credentialsInvite.classList.add('visible');
-                credentialsInvite.setAttribute('aria-hidden', 'false');
-                useCredentials?.focus();
-            }
+            login.identifiant.value = credential.id;
+            passwordInput.value = credential.password;
+            document.getElementById('souvenir').checked = true;
+            login.requestSubmit();
         } catch {}
     };
-    useCredentials?.addEventListener('click', () => {
-        if (savedCredential) {
-            login.identifiant.value = savedCredential.id;
-            passwordInput.value = savedCredential.password;
-            login.classList.add('identifiants-remplis');
-            setTimeout(() => login.classList.remove('identifiants-remplis'), 700);
-        }
-        closeCredentialsInvite();
-    });
-    declineCredentials?.addEventListener('click', closeCredentialsInvite);
-    credentialsInvite?.addEventListener('click', event => { if (event.target === credentialsInvite) closeCredentialsInvite(); });
-    document.addEventListener('keydown', event => { if (event.key === 'Escape' && credentialsInvite?.classList.contains('visible')) closeCredentialsInvite(); });
-    findSavedCredential();
     if (login) login.addEventListener('submit', async event => {
         event.preventDefault();
         const submit = login.querySelector('.bouton-connexion');
@@ -1483,6 +1456,7 @@ document.addEventListener('DOMContentLoaded', () => {
             submit.textContent = 'Se connecter';
         }
     });
+        findSavedCredential();
 
     if ('serviceWorker' in navigator) {
         navigator.serviceWorker.register('sw.js?v=20260917-05', { scope: './', updateViaCache: 'none' }).catch(() => {});

@@ -60,9 +60,9 @@ $titre_page = 'Notifications et messages';
     <div class="toast" id="toast"></div>
 </div>
 <script src="assets/js/cache-reset.js?v=20260917-03"></script>
-<script src="assets/js/api.js?v=20261009-02"></script>
+<script src="assets/js/api.js?v=20261009-03"></script>
 <script src="assets/js/storage.js?v=20260917-03"></script>
-<script src="assets/js/app.js?v=20261009-02"></script>
+<script src="assets/js/app.js?v=20261009-03"></script>
 <script>
 (function () {
     const seenMessagesKey = 'myges-messages-seen-v1';
