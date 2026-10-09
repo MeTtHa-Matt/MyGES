@@ -10,7 +10,8 @@ session_set_cookie_params([
     'secure' => $secureCookie = ((!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || strtolower(trim(explode(',', (string) ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? ''), 2)[0])) === 'https' || strtolower((string) ($_SERVER['HTTP_X_FORWARDED_SSL'] ?? '')) === 'on'),
     'samesite' => 'Lax',
 ]);
-session_start();
+$readOnlyPublicCalendar = (string) ($_GET['resource'] ?? '') === 'calendar';
+session_start($readOnlyPublicCalendar ? ['read_and_close' => true] : []);
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
 
@@ -176,6 +177,155 @@ function limitUpstreamConcurrency(): void {
 function requestBody(): array {
     $body = json_decode(file_get_contents('php://input'), true);
     return is_array($body) ? $body : [];
+}
+
+function publicCalendarId(string $input): ?string {
+    $input = trim($input);
+    if (filter_var($input, FILTER_VALIDATE_URL)) {
+        $parts = parse_url($input);
+        if (!is_array($parts) || strtolower((string) ($parts['scheme'] ?? '')) !== 'https' || strtolower((string) ($parts['host'] ?? '')) !== 'calendar.google.com') return null;
+        parse_str((string) ($parts['query'] ?? ''), $query);
+        if (!empty($query['cid'])) {
+            $decoded = base64_decode(strtr((string) $query['cid'], '-_', '+/'), true);
+            $input = is_string($decoded) ? $decoded : '';
+        } elseif (preg_match('~^/calendar/ical/([^/]+)/public/(?:basic\.ics)?$~', (string) ($parts['path'] ?? ''), $match)) {
+            $input = rawurldecode($match[1]);
+        } else {
+            return null;
+        }
+    }
+    return preg_match('/^[A-Za-z0-9._+-]+@[A-Za-z0-9.-]+$/', $input) ? $input : null;
+}
+
+function fetchPublicCalendar(string $calendarId): array {
+    $url = 'https://calendar.google.com/calendar/ical/' . rawurlencode($calendarId) . '/public/basic.ics';
+    $curl = curl_init($url);
+    curl_setopt_array($curl, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_FOLLOWLOCATION => true,
+        CURLOPT_MAXREDIRS => 3,
+        CURLOPT_CONNECTTIMEOUT => 5,
+        CURLOPT_TIMEOUT => 15,
+        CURLOPT_PROTOCOLS => CURLPROTO_HTTPS,
+        CURLOPT_REDIR_PROTOCOLS => CURLPROTO_HTTPS,
+        CURLOPT_USERAGENT => 'MyGES Calendar/1.0',
+    ]);
+    $body = curl_exec($curl);
+    $status = (int) curl_getinfo($curl, CURLINFO_RESPONSE_CODE);
+    $contentType = (string) curl_getinfo($curl, CURLINFO_CONTENT_TYPE);
+    curl_close($curl);
+    if (!is_string($body) || $status < 200 || $status >= 300 || strlen($body) > 1048576 || stripos($contentType, 'text/calendar') === false) {
+        respond(['error' => 'Calendrier Google inaccessible ou non public.'], 502);
+    }
+
+    $lines = preg_split("/\r\n|\n|\r/", $body) ?: [];
+    $unfolded = [];
+    foreach ($lines as $line) {
+        if (($line[0] ?? '') === ' ' || ($line[0] ?? '') === "\t") {
+            if ($unfolded) $unfolded[count($unfolded) - 1] .= substr($line, 1);
+        } else {
+            $unfolded[] = $line;
+        }
+    }
+    $decodeText = static fn(string $value): string => strtr($value, ['\\n' => "\n", '\\N' => "\n", '\\,' => ',', '\\;' => ';', '\\\\' => '\\']);
+    $parseDate = static function (string $value, string $parameters): ?string {
+        $value = trim($value);
+        if (preg_match('/^\d{8}$/', $value)) {
+            $date = DateTimeImmutable::createFromFormat('!Ymd', $value);
+            return $date ? $date->format('Y-m-d') : null;
+        }
+        $zone = new DateTimeZone('UTC');
+        if (preg_match('/(?:^|;)TZID="?([^;"\\:]+)"?/i', $parameters, $match)) {
+            try { $zone = new DateTimeZone($match[1]); } catch (Throwable) {}
+        }
+        $utc = str_ends_with($value, 'Z');
+        $minutesOnly = preg_match('/^\d{8}T\d{4}Z?$/i', $value) === 1;
+        $format = $minutesOnly ? ($utc ? '!Ymd\\THi\\Z' : '!Ymd\\THi') : ($utc ? '!Ymd\\THis\\Z' : '!Ymd\\THis');
+        $date = DateTimeImmutable::createFromFormat($format, $value, $zone);
+        return $date ? $date->format(DateTimeInterface::ATOM) : null;
+    };
+    $events = [];
+    $calendarName = '';
+    $event = null;
+    foreach ($unfolded as $line) {
+        if (str_starts_with($line, 'BEGIN:VEVENT')) { $event = []; continue; }
+        if (str_starts_with($line, 'END:VEVENT')) {
+            if (is_array($event) && !empty($event['start']) && strtolower($event['status'] ?? '') !== 'cancelled') {
+                $events[] = [
+                    'id' => $event['uid'] ?? hash('sha256', ($event['start'] ?? '') . ($event['summary'] ?? '')),
+                    'title' => $event['summary'] ?? 'Évaluation',
+                    'start' => $event['start'],
+                    'end' => $event['end'] ?? '',
+                    'date' => substr($event['start'], 0, 10),
+                    'description' => $event['description'] ?? '',
+                    'location' => $event['location'] ?? '',
+                    'url' => $event['url'] ?? '',
+                ];
+            }
+            $event = null;
+            if (count($events) >= 500) break;
+            continue;
+        }
+        if (!str_contains($line, ':')) continue;
+        [$property, $value] = explode(':', $line, 2);
+        [$name, $parameters] = array_pad(explode(';', $property, 2), 2, '');
+        $name = strtoupper($name);
+        if ($event !== null) {
+            if ($name === 'DTSTART' || $name === 'DTEND') $event[strtolower(substr($name, 2))] = $parseDate($value, $parameters);
+            elseif (in_array($name, ['UID', 'SUMMARY', 'DESCRIPTION', 'LOCATION', 'URL', 'STATUS'], true)) $event[strtolower($name)] = $decodeText($value);
+        } elseif ($name === 'X-WR-CALNAME') {
+            $calendarName = $decodeText($value);
+        }
+    }
+    usort($events, static fn(array $first, array $second): int => strcmp($first['start'], $second['start']));
+    return ['name' => $calendarName, 'events' => $events];
+}
+
+function fetchPublicCalendarCached(string $calendarId): array {
+    $directory = privateRuntimeDirectory();
+    if ($directory === null) {
+        limitUpstreamConcurrency();
+        return fetchPublicCalendar($calendarId);
+    }
+    $cacheKey = hash('sha256', $calendarId);
+    $cachePath = $directory . '/calendar-' . $cacheKey . '.json';
+    $lock = @fopen($directory . '/calendar-' . $cacheKey . '.lock', 'c');
+    if ($lock === false || !flock($lock, LOCK_EX)) {
+        if (is_resource($lock)) fclose($lock);
+        limitUpstreamConcurrency();
+        return fetchPublicCalendar($calendarId);
+    }
+
+    try {
+        $modified = @filemtime($cachePath);
+        $size = @filesize($cachePath);
+        if (!is_link($cachePath) && $modified !== false && $size !== false && $size <= 3145728 && time() - $modified < 1800) {
+            $cached = json_decode((string) @file_get_contents($cachePath), true);
+            if (is_array($cached) && is_array($cached['events'] ?? null)) return $cached;
+        }
+
+        limitUpstreamConcurrency();
+        $payload = fetchPublicCalendar($calendarId);
+        $body = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        if (is_string($body) && strlen($body) <= 3145728) {
+            $cacheFile = @fopen($cachePath, 'c');
+            if ($cacheFile !== false) {
+                if (flock($cacheFile, LOCK_EX)) {
+                    ftruncate($cacheFile, 0);
+                    rewind($cacheFile);
+                    fwrite($cacheFile, $body);
+                    fflush($cacheFile);
+                    @chmod($cachePath, 0600);
+                    flock($cacheFile, LOCK_UN);
+                }
+                fclose($cacheFile);
+            }
+        }
+        return $payload;
+    } finally {
+        flock($lock, LOCK_UN);
+        fclose($lock);
+    }
 }
 
 function authorizeUser(string $username, string $password): string {
@@ -1299,6 +1449,12 @@ $routes = [
 ];
 
 if ($method === 'POST' && !isSameOriginMutation()) respond(['error' => 'Requête refusée.'], 403);
+if ($resource === 'calendar') {
+    if ($method !== 'GET') respond(['error' => 'Méthode non autorisée.'], 405);
+    $calendarId = publicCalendarId((string) ($_GET['calendarId'] ?? ''));
+    if ($calendarId === null) respond(['error' => 'Lien de calendrier Google public invalide.'], 422);
+    respond(fetchPublicCalendarCached($calendarId));
+}
 if ($resource === 'login' && $method === 'POST') {
     $body = requestBody();
     if (empty($body['username']) || empty($body['password'])) respond(['error' => 'Identifiant et mot de passe requis.'], 422);

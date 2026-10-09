@@ -69,6 +69,7 @@ window.mygesApi = {
     messages: () => request('messages', { timeout: 30000 }),
     events: () => request('events', { timeout: 30000 }),
     event: id => request('event', { query: id ? { id } : {}, timeout: 30000 }),
+    calendar: url => request('calendar', { query: { calendarId: url }, timeout: 30000 }),
     projects: year => request('projects', { query: year ? { year } : {}, timeout: 30000 }),
     planning: (date, scope = 'week') => request('planning', { query: date ? { date, scope } : { scope } }),
     grades: () => request('grades', { timeout: 90000 }),

@@ -237,15 +237,315 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    const ASSESSMENT_CALENDARS_KEY = 'myges-assessment-calendars-v1';
+    const ASSESSMENT_EVENTS_KEY = 'myges-assessment-events-v1';
+    const ASSESSMENT_REFRESH_LOCK_KEY = 'myges-assessment-refresh-lock-v1';
+    const ASSESSMENT_CACHE_MAX_AGE = 30 * 60 * 1000;
+    const ASSESSMENT_REFRESH_INTERVAL = 30 * 60 * 1000;
+    const ASSESSMENT_REFRESH_CONCURRENCY = 2;
+    const assessmentRefreshOwner = window.crypto?.randomUUID?.() || `${Date.now()}-${Math.random()}`;
+    let assessmentCalendars = [];
+    let assessmentEvents = [];
+    let planningItems = [];
+    let assessmentRefreshPromise = null;
+
+    const readAssessmentCalendars = () => {
+        try {
+            const value = JSON.parse(localStorage.getItem(ASSESSMENT_CALENDARS_KEY) || '[]');
+            return Array.isArray(value) ? value.filter(item => item && typeof item.url === 'string') : [];
+        } catch { return []; }
+    };
+    const readAssessmentCache = () => {
+        try {
+            const value = JSON.parse(localStorage.getItem(ASSESSMENT_EVENTS_KEY) || '{}');
+            return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+        }
+        catch { return {}; }
+    };
+    const setAssessmentEvents = cache => {
+        assessmentEvents = assessmentCalendars.flatMap(calendar => {
+            const feed = cache[calendar.url];
+            return Array.isArray(feed?.events) ? feed.events.map(item => ({ ...item, calendarUrl: calendar.url, calendarName: feed.name || calendar.name || 'Calendrier de cours' })) : [];
+        }).sort((first, second) => String(first.start || '').localeCompare(String(second.start || '')));
+        renderDevoirs();
+        if (document.querySelector('.nav-jour') && planningItems.length) renderPlanning(planningItems);
+    };
+    const assessmentDate = item => item.date || String(item.start || '').slice(0, 10);
+    const assessmentLabelDate = item => {
+        const date = assessmentDate(item);
+        const parsed = date ? new Date(`${date}T12:00:00`) : new Date(item.start);
+        if (Number.isNaN(parsed.getTime())) return 'Date à confirmer';
+        const dateLabel = parsed.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+        if (!item.start || /^\d{4}-\d{2}-\d{2}$/.test(item.start)) return dateLabel;
+        const start = new Date(item.start);
+        return Number.isNaN(start.getTime()) ? dateLabel : `${dateLabel} · ${start.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`;
+    };
+    const assessmentText = item => [item.title, item.description, item.location].filter(Boolean).join(' ').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('fr');
+    const assessmentMatchesCourse = (item, courseTitle) => {
+        const ignored = new Set(['avec', 'dans', 'pour', 'sur', 'cours', 'controle', 'evaluation', 'examen', 'devoir', 'partiel', 'quiz', 'ds', 'tp', 'td', 'cm']);
+        const courseWords = courseTitle.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('fr').match(/[a-z0-9]{3,}/g) || [];
+        const usefulWords = courseWords.filter(word => !ignored.has(word));
+        if (!usefulWords.length) return false;
+        const eventText = assessmentText(item);
+        return usefulWords.some(word => eventText.includes(word));
+    };
+
+    function renderDevoirs() {
+        const calendarList = document.getElementById('devoirs-calendar-list');
+        const eventList = document.getElementById('devoirs-event-list');
+        const eventCount = document.getElementById('devoirs-event-count');
+        if (!calendarList || !eventList) return;
+        const cache = readAssessmentCache();
+        calendarList.innerHTML = assessmentCalendars.length ? assessmentCalendars.map((calendar, index) => {
+            const feed = cache[calendar.url];
+            const label = feed?.name || calendar.name || `Calendrier ${index + 1}`;
+            const detail = feed?.error ? 'Synchronisation impossible' : feed?.fetchedAt ? `Mis à jour ${new Date(feed.fetchedAt).toLocaleString('fr-FR')}` : 'Pas encore synchronisé';
+            return `<div class="devoir-calendar-item"><span class="devoir-calendar-mark" aria-hidden="true"></span><span class="devoir-calendar-copy"><strong>${escapeHtml(label)}</strong><small>${escapeHtml(detail)}</small></span><button type="button" class="devoir-calendar-remove" data-remove-calendar="${index}" aria-label="Supprimer ${escapeHtml(label)}" title="Supprimer">×</button></div>`;
+        }).join('') : '<p class="devoirs-empty-inline">Aucun calendrier ajouté.</p>';
+
+        const now = new Date();
+        const upcoming = assessmentEvents.filter(item => {
+            const date = assessmentDate(item);
+            return date && date >= now.toISOString().slice(0, 10);
+        }).slice(0, 100);
+        if (eventCount) eventCount.textContent = String(upcoming.length);
+        eventList.innerHTML = upcoming.length ? upcoming.map((item, eventPosition) => {
+            const index = assessmentEvents.indexOf(item);
+            return `<button type="button" class="devoir-event${eventPosition === 0 ? ' is-next' : ''}" data-assessment-index="${index}"><span class="devoir-event-date">${escapeHtml(assessmentLabelDate(item))}</span><span class="devoir-event-copy"><strong>${escapeHtml(item.title || 'Évaluation')}</strong><small>${escapeHtml(item.calendarName || 'Calendrier de cours')}${item.location ? ` · ${escapeHtml(item.location)}` : ''}</small></span><span class="devoir-event-arrow" aria-hidden="true">›</span></button>`;
+        }).join('') : `<div class="etat-vide-mini">${assessmentCalendars.length ? 'Aucune évaluation à venir dans les calendriers.' : 'Ajoutez un calendrier pour afficher les prochaines évaluations.'}</div>`;
+    }
+
+    const safeAssessmentDescription = value => {
+        const parsed = new DOMParser().parseFromString(String(value ?? ''), 'text/html');
+        const allowedTags = new Set(['B', 'STRONG', 'EM', 'I', 'U', 'BR', 'P', 'UL', 'OL', 'LI']);
+        const renderNode = node => {
+            if (node.nodeType === 3) return escapeHtml(node.textContent);
+            if (node.nodeType !== 1) return '';
+            const tag = node.tagName.toUpperCase();
+            if (['SCRIPT', 'STYLE', 'IFRAME', 'OBJECT', 'SVG'].includes(tag)) return '';
+            const children = [...node.childNodes].map(renderNode).join('');
+            if (tag === 'A') {
+                try {
+                    const url = new URL(node.getAttribute('href') || '', window.location.href);
+                    if (url.protocol !== 'https:') return children;
+                    const label = node.textContent.trim() === url.href ? 'Ouvrir le lien associé' : children;
+                    return `<a href="${escapeHtml(url.href)}" target="_blank" rel="noopener noreferrer">${label}</a>`;
+                } catch { return children; }
+            }
+            return allowedTags.has(tag) ? `<${tag.toLowerCase()}>${children}</${tag.toLowerCase()}>` : children;
+        };
+        return [...parsed.body.childNodes].map(renderNode).join('');
+    };
+
+    let assessmentModalCloseTimer = 0;
+
+    function closeAssessmentModal() {
+        const modal = document.getElementById('devoir-modal');
+        if (!modal?.classList.contains('visible') || modal.classList.contains('is-closing')) return;
+        clearTimeout(assessmentModalCloseTimer);
+        modal.classList.remove('is-open');
+        modal.classList.add('is-closing');
+        const finish = () => {
+            modal.classList.remove('visible', 'is-open', 'is-closing');
+            modal.setAttribute('aria-hidden', 'true');
+        };
+        if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+            finish();
+            return;
+        }
+        assessmentModalCloseTimer = window.setTimeout(finish, 280);
+    }
+
+    function openAssessmentModal(item) {
+        const modal = document.getElementById('devoir-modal');
+        const title = document.getElementById('devoir-modal-title');
+        const details = document.getElementById('devoir-modal-details');
+        if (!modal || !title || !details) return;
+        clearTimeout(assessmentModalCloseTimer);
+        title.textContent = item.title || 'Évaluation';
+        const url = typeof item.url === 'string' && /^https:\/\//i.test(item.url) ? `<p><a href="${escapeHtml(item.url)}" target="_blank" rel="noopener noreferrer">Ouvrir le lien associé</a></p>` : '';
+        details.innerHTML = `<dl class="devoir-modal-info"><div><dt>Date</dt><dd>${escapeHtml(assessmentLabelDate(item))}</dd></div>${item.location ? `<div><dt>Lieu</dt><dd>${escapeHtml(item.location)}</dd></div>` : ''}<div><dt>Calendrier</dt><dd>${escapeHtml(item.calendarName || 'Calendrier de cours')}</dd></div></dl>${item.description ? `<div class="devoir-modal-description">${safeAssessmentDescription(item.description)}</div>` : '<p class="devoir-modal-description">Aucune description supplémentaire.</p>'}${url}`;
+        modal.classList.remove('is-closing', 'is-open');
+        modal.classList.add('visible');
+        modal.setAttribute('aria-hidden', 'false');
+        if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+            modal.classList.add('is-open');
+            return;
+        }
+        requestAnimationFrame(() => modal.classList.add('is-open'));
+    }
+
+    async function refreshAssessmentCalendars(force = false) {
+        assessmentCalendars = readAssessmentCalendars();
+        const cache = readAssessmentCache();
+        setAssessmentEvents(cache);
+        if (!assessmentCalendars.length || assessmentRefreshPromise) return assessmentRefreshPromise;
+        const now = Date.now();
+        const dueCalendars = assessmentCalendars.filter(calendar => {
+            const lastChecked = Number(cache[calendar.url]?.checkedAt || cache[calendar.url]?.fetchedAt || 0);
+            return force || now - lastChecked >= ASSESSMENT_CACHE_MAX_AGE;
+        });
+        if (!dueCalendars.length) return;
+
+        let existingLock = null;
+        try { existingLock = JSON.parse(localStorage.getItem(ASSESSMENT_REFRESH_LOCK_KEY) || 'null'); } catch {}
+        if (existingLock?.expiresAt > now && existingLock.owner !== assessmentRefreshOwner) return;
+        localStorage.setItem(ASSESSMENT_REFRESH_LOCK_KEY, JSON.stringify({ owner: assessmentRefreshOwner, expiresAt: now + 180000 }));
+        let acquiredLock = null;
+        try { acquiredLock = JSON.parse(localStorage.getItem(ASSESSMENT_REFRESH_LOCK_KEY) || 'null'); } catch {}
+        if (acquiredLock?.owner !== assessmentRefreshOwner) return;
+
+        assessmentRefreshPromise = (async () => {
+            let nextCalendar = 0;
+            const worker = async () => {
+                while (nextCalendar < dueCalendars.length) {
+                    const calendar = dueCalendars[nextCalendar++];
+                    try {
+                        const feed = await window.mygesApi.calendar(calendar.url);
+                        const checkedAt = Date.now();
+                        cache[calendar.url] = {
+                            name: feed.name || calendar.name || '',
+                            events: Array.isArray(feed.events) ? feed.events : [],
+                            fetchedAt: checkedAt,
+                            checkedAt,
+                            error: ''
+                        };
+                    } catch (error) {
+                        cache[calendar.url] = { ...(cache[calendar.url] || {}), checkedAt: Date.now(), error: error.message };
+                    }
+                    localStorage.setItem(ASSESSMENT_EVENTS_KEY, JSON.stringify(cache));
+                    setAssessmentEvents(cache);
+                }
+            };
+            await Promise.all(Array.from({ length: Math.min(ASSESSMENT_REFRESH_CONCURRENCY, dueCalendars.length) }, worker));
+        })().finally(() => {
+            try {
+                const lock = JSON.parse(localStorage.getItem(ASSESSMENT_REFRESH_LOCK_KEY) || 'null');
+                if (lock?.owner === assessmentRefreshOwner) localStorage.removeItem(ASSESSMENT_REFRESH_LOCK_KEY);
+            } catch {}
+            assessmentRefreshPromise = null;
+        });
+        return assessmentRefreshPromise;
+    }
+
+    function initializeAssessments() {
+        assessmentCalendars = readAssessmentCalendars();
+        setAssessmentEvents(readAssessmentCache());
+        document.getElementById('devoirs-add-form')?.addEventListener('submit', async event => {
+            event.preventDefault();
+            const input = document.getElementById('devoirs-calendar-url');
+            const status = document.getElementById('devoirs-form-status');
+            const value = input?.value.trim() || '';
+            if (!value) return;
+            let calendarUrl;
+            try { calendarUrl = new URL(value); } catch {}
+            if (calendarUrl?.protocol !== 'https:' || calendarUrl.hostname !== 'calendar.google.com' || (!calendarUrl.searchParams.has('cid') && !/^\/calendar\/ical\/[^/]+\/public\/(?:basic\.ics)?$/.test(calendarUrl.pathname))) {
+                if (status) status.textContent = 'Utilisez un lien de calendrier Google public.';
+                return;
+            }
+            if (assessmentCalendars.some(calendar => calendar.url === value)) {
+                if (status) status.textContent = 'Ce calendrier est déjà ajouté.';
+                return;
+            }
+            if (assessmentCalendars.length >= 10) {
+                if (status) status.textContent = 'La limite de 10 calendriers est atteinte.';
+                return;
+            }
+            assessmentCalendars = [...assessmentCalendars, { url: value }];
+            localStorage.setItem(ASSESSMENT_CALENDARS_KEY, JSON.stringify(assessmentCalendars));
+            if (input) input.value = '';
+            if (status) status.textContent = '';
+            renderDevoirs();
+            await refreshAssessmentCalendars();
+        });
+        document.getElementById('devoirs-refresh')?.addEventListener('click', event => {
+            const button = event.currentTarget;
+            button.disabled = true;
+            refreshAssessmentCalendars(true).finally(() => { button.disabled = false; });
+        });
+        document.addEventListener('click', event => {
+            const remove = event.target.closest('[data-remove-calendar]');
+            if (remove) {
+                const index = Number(remove.dataset.removeCalendar);
+                const savedCalendars = readAssessmentCalendars();
+                const removedCalendar = savedCalendars[index];
+                assessmentCalendars = savedCalendars.filter((calendar, calendarIndex) => calendarIndex !== index);
+                localStorage.setItem(ASSESSMENT_CALENDARS_KEY, JSON.stringify(assessmentCalendars));
+                const cache = readAssessmentCache();
+                if (removedCalendar) delete cache[removedCalendar.url];
+                localStorage.setItem(ASSESSMENT_EVENTS_KEY, JSON.stringify(cache));
+                setAssessmentEvents(cache);
+                return;
+            }
+            const trigger = event.target.closest('[data-assessment-index]');
+            if (trigger) openAssessmentModal(assessmentEvents[Number(trigger.dataset.assessmentIndex)]);
+        });
+        const modal = document.getElementById('devoir-modal');
+        document.getElementById('devoir-modal-close')?.addEventListener('click', closeAssessmentModal);
+        modal?.addEventListener('click', event => {
+            if (event.target === modal) closeAssessmentModal();
+        });
+        document.addEventListener('keydown', event => {
+            if (event.key === 'Escape' && modal?.classList.contains('visible')) closeAssessmentModal();
+        });
+        const refreshWhenActive = () => {
+            if (document.visibilityState === 'visible') refreshAssessmentCalendars();
+        };
+        refreshAssessmentCalendars();
+        window.setInterval(refreshWhenActive, ASSESSMENT_REFRESH_INTERVAL);
+        window.addEventListener('focus', refreshWhenActive);
+        window.addEventListener('online', refreshWhenActive);
+        document.addEventListener('visibilitychange', refreshWhenActive);
+    }
+
+    function renderPlanningAssessments(content, placements) {
+        content.querySelector('.planning-assessment-layer')?.remove();
+        if (!placements.length) return;
+        const contentRect = content.getBoundingClientRect();
+        const buttons = placements.map(placement => {
+            const rows = placement.courseIndexes
+                .map(index => content.querySelector(`[data-planning-course-index="${index}"]`))
+                .filter(Boolean);
+            if (!rows.length) return '';
+            const first = rows[0].getBoundingClientRect();
+            const last = rows[rows.length - 1].getBoundingClientRect();
+            const top = Math.max(0, first.top - contentRect.top);
+            const height = Math.max(44, last.bottom - first.top);
+            const label = /\b(devoir|dm|rendu)\b/i.test(assessmentText(placement.item)) ? 'Devoir' : 'Évaluation';
+            const accessibleType = label === 'Devoir' ? 'du devoir' : 'de l’évaluation';
+            return `<button type="button" class="planning-assessment-alert" style="top:${top}px;height:${height}px" data-assessment-index="${placement.eventIndex}" aria-label="Ouvrir les détails ${accessibleType}">${label}</button>`;
+        }).join('');
+        if (buttons) content.insertAdjacentHTML('beforeend', `<div class="planning-assessment-layer" aria-label="Évaluations et devoirs">${buttons}</div>`);
+    }
+
     function renderPlanning(items) {
         const content = document.querySelector('.contenu');
         if (!content) return;
+        content.classList.add('planning-assessment-content');
+        planningItems = items;
         const selected = typeof DATE_AFFICHEE !== 'undefined' ? DATE_AFFICHEE : new Date().toISOString().slice(0, 10);
         const datedItems = items.filter(item => dateKey(item));
         const visible = datedItems.length
             ? datedItems.filter(item => dateKey(item) === selected)
             : [];
         const ordered = [...visible].sort((first, second) => (eventMoment(first)?.getTime() || 0) - (eventMoment(second)?.getTime() || 0));
+        const dayAssessments = assessmentEvents.filter(assessment => assessmentDate(assessment) === selected);
+        const placements = dayAssessments.map(assessment => {
+            let courseIndexes = ordered.map((item, index) => assessmentMatchesCourse(assessment, normalize(item).title) ? index : -1).filter(index => index >= 0);
+            const start = eventMoment(assessment);
+            const end = eventMoment(assessment, true);
+            if (start && end) {
+                const overlapping = courseIndexes.filter(index => {
+                    const courseStart = eventMoment(ordered[index]);
+                    const courseEnd = eventMoment(ordered[index], true);
+                    return courseStart && courseEnd && courseStart < end && courseEnd > start;
+                });
+                if (overlapping.length) courseIndexes = overlapping;
+            }
+            if (!courseIndexes.length && ordered.length === 1) courseIndexes = [0];
+            return { item: assessment, eventIndex: assessmentEvents.indexOf(assessment), courseIndexes };
+        }).filter(placement => placement.courseIndexes.length);
+        const assessmentCourses = new Set(placements.flatMap(placement => placement.courseIndexes));
         const rows = ordered.reduce((html, item, index) => {
             const previous = ordered[index - 1];
             const previousEnd = previous && eventMoment(previous, true);
@@ -257,11 +557,13 @@ document.addEventListener('DOMContentLoaded', () => {
             const entry = normalize(item);
             const [startTime, endTime] = entry.time.split(/\s+-\s+/);
             const displayedEnd = !ordered[index + 1] && endTime ? `<span>${escapeHtml(endTime)}</span>` : '';
-            return html + `<div class="creneau"><div class="creneau-heure"><span>${escapeHtml(startTime)}</span>${displayedEnd}</div><div class="creneau-barre" style="background:${escapeHtml(courseColor(item, index))}"></div><div class="creneau-corps"><div class="titre">${escapeHtml(entry.title)}</div><div class="meta">${escapeHtml(entry.type)}${entry.teacher ? `<br>${escapeHtml(entry.teacher)}` : ''}<br><strong>${escapeHtml(entry.room)}</strong></div></div></div>`;
+            const assessmentClass = assessmentCourses.has(index) ? ' creneau-has-assessment' : '';
+            return html + `<div class="creneau${assessmentClass}" data-planning-course-index="${index}"><div class="creneau-heure"><span>${escapeHtml(startTime)}</span>${displayedEnd}</div><div class="creneau-barre" style="background:${escapeHtml(courseColor(item, index))}"></div><div class="creneau-corps"><div class="titre">${escapeHtml(entry.title)}</div><div class="meta">${escapeHtml(entry.type)}${entry.teacher ? `<br>${escapeHtml(entry.teacher)}` : ''}<br><strong>${escapeHtml(entry.room)}</strong></div></div></div>`;
         }, '');
         const schedule = content.querySelector('.nav-jour')?.nextElementSibling;
         content.querySelectorAll('.creneau, .creneau-vide, .planning-empty').forEach(element => element.remove());
         schedule?.insertAdjacentHTML('afterend', rows || '<div class="etat-vide planning-empty"><p>Pas de cours ce jour</p><img class="etat-vide-image" src="assets/img/image.png" alt="Aucun cours ce jour"></div>');
+        renderPlanningAssessments(content, placements);
         window.DONNEES_EMPLOI_DU_TEMPS = items.reduce((all, item) => { const key = dateKey(item); if (key) (all[key] ||= []).push(item); return all; }, {});
         setupCalendar(items);
     }
@@ -1182,6 +1484,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!isLogin) {
         loadProfile();
         if (document.querySelector('.page-login')) return;
+        initializeAssessments();
         if (document.querySelector('.section-accueil')) loadResource('planning', renderHome);
         if (document.getElementById('home-events')) loadResource('events', renderHomeEvents);
         if (document.getElementById('home-news')) loadResource('news', renderHomeNews);

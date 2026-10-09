@@ -40,7 +40,7 @@ $cours_du_jour = $emploi_du_temps[$date_affichee] ?? [];
 <link rel="icon" href="assets/img/favicon.jpeg" type="image/jpeg">
 <link rel="manifest" href="manifest.json">
 <title>Emploi du temps — Portail Étudiant</title>
-<link rel="stylesheet" href="assets/css/style.css?v=20260917-15">
+<link rel="stylesheet" href="assets/css/style.css?v=20261009-07">
 <style media="print">
     .top-bar-actions, .rail-lateral, .panneau-menu, .overlay-menu, .actions-flottantes, .nav-jour button { display: none !important; }
 </style>
@@ -83,6 +83,16 @@ $cours_du_jour = $emploi_du_temps[$date_affichee] ?? [];
 
     </main>
 
+    <div class="modale-fond devoir-modal" id="devoir-modal" aria-hidden="true">
+        <div class="modale-boite" role="dialog" aria-modal="true" aria-labelledby="devoir-modal-title">
+            <div class="modale-entete">
+                <h2 id="devoir-modal-title">Évaluation</h2>
+                <button type="button" class="modale-fermer" id="devoir-modal-close" aria-label="Fermer">&times;</button>
+            </div>
+            <div id="devoir-modal-details"></div>
+        </div>
+    </div>
+
     <div class="actions-flottantes">
         <button type="button" class="action-ronde ical" id="btn-telecharger-ical" aria-label="Exporter en .ical"><?= icone_calendrier() ?></button>
         <button type="button" class="action-ronde pdf" id="btn-imprimer-pdf" aria-label="Exporter en PDF"><?= icone_pdf() ?></button>
@@ -118,8 +128,8 @@ $cours_du_jour = $emploi_du_temps[$date_affichee] ?? [];
 </script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="assets/js/cache-reset.js?v=20260917-02"></script>
-<script src="assets/js/api.js?v=20261009-01"></script>
+<script src="assets/js/api.js?v=20261009-02"></script>
 <script src="assets/js/storage.js?v=20260917-02"></script>
-<script src="assets/js/app.js?v=20260917-07"></script>
+<script src="assets/js/app.js?v=20261009-08"></script>
 </body>
 </html>

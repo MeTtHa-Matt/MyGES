@@ -15,50 +15,66 @@ $titre_page = 'Devoirs';
 <link rel="icon" href="assets/img/favicon.jpeg" type="image/jpeg">
 <link rel="manifest" href="manifest.json">
 <title>Devoirs — Portail Étudiant</title>
-<link rel="stylesheet" href="assets/css/style.css?v=20260914-33">
+<link rel="stylesheet" href="assets/css/style.css?v=20261009-07">
 </head>
 <body>
 <div class="app-frame">
 
     <?php require __DIR__ . '/includes/entete.php'; ?>
 
-    <main class="contenu">
-        <div class="barre-filtre">
-            <button type="button" class="bouton-filtre" id="btn-ouvrir-filtre" aria-label="Filtrer"><?= icone_filtre() ?></button>
-        </div>
-        <hr class="separateur">
-        <div class="etat-vide">
-            <p>Aucun devoir pour les 7 prochains jours</p>
-            <img class="etat-vide-image" src="assets/img/image.png" alt="Aucun résultat">
-        </div>
+    <main class="contenu devoirs-page">
+        <section class="devoirs-events-section" aria-labelledby="devoirs-events-title">
+            <div class="devoirs-section-heading">
+                <div>
+                    <p class="devoirs-eyebrow">AGENDA ACADÉMIQUE</p>
+                    <h2 id="devoirs-events-title">Prochaines évaluations</h2>
+                </div>
+                <div class="devoirs-count-block" aria-label="Nombre d’évaluations à venir">
+                    <span class="devoirs-event-count" id="devoirs-event-count">0</span>
+                    <small>à venir</small>
+                </div>
+            </div>
+            <div class="devoirs-event-list" id="devoirs-event-list" aria-live="polite">
+                <div class="etat-vide-mini">Chargement des calendriers…</div>
+            </div>
+        </section>
+        <section class="devoirs-calendar-section" aria-labelledby="devoirs-calendar-title">
+            <div class="devoirs-section-heading">
+                <div>
+                    <p class="devoirs-eyebrow">SOURCES CONNECTÉES</p>
+                    <h2 id="devoirs-calendar-title">Mes calendriers</h2>
+                </div>
+                <button type="button" class="devoirs-refresh" id="devoirs-refresh" aria-label="Actualiser les calendriers" title="Actualiser">↻</button>
+            </div>
+            <form class="devoirs-add-form" id="devoirs-add-form">
+                <label for="devoirs-calendar-url">Ajouter un calendrier Google</label>
+                <div class="devoirs-add-row">
+                    <input type="url" id="devoirs-calendar-url" name="calendar" placeholder="https://calendar.google.com/calendar/..." required>
+                    <button type="submit" class="btn-appliquer">Ajouter</button>
+                </div>
+                <p class="devoirs-form-status" id="devoirs-form-status" aria-live="polite"></p>
+            </form>
+            <div class="devoirs-calendar-list" id="devoirs-calendar-list"></div>
+        </section>
     </main>
 
     <?php require __DIR__ . '/includes/menu_lateral.php'; ?>
 
-    <div class="modale-fond" id="modale-filtre">
-        <div class="modale-boite">
+    <div class="modale-fond devoir-modal" id="devoir-modal" aria-hidden="true">
+        <div class="modale-boite" role="dialog" aria-modal="true" aria-labelledby="devoir-modal-title">
             <div class="modale-entete">
-                <h2>Filtrer les devoirs</h2>
-                <button type="button" class="modale-fermer" id="btn-fermer-filtre" aria-label="Fermer">&times;</button>
+                <h2 id="devoir-modal-title">Évaluation</h2>
+                <button type="button" class="modale-fermer" id="devoir-modal-close" aria-label="Fermer">&times;</button>
             </div>
-            <form class="panneau-filtre" id="form-filtre">
-                <label for="filtre-date-debut">Du</label>
-                <input type="date" id="filtre-date-debut" name="date_debut">
-                <label for="filtre-date-fin">Au</label>
-                <input type="date" id="filtre-date-fin" name="date_fin">
-                <div class="actions-filtre">
-                    <button type="button" class="btn-reinitialiser" id="btn-reinitialiser-filtre">Réinitialiser</button>
-                    <button type="submit" class="btn-appliquer">Appliquer</button>
-                </div>
-            </form>
+            <div id="devoir-modal-details"></div>
         </div>
     </div>
 
     <div class="toast" id="toast"></div>
 </div>
 <script src="assets/js/cache-reset.js?v=20260914-8"></script>
-<script src="assets/js/api.js?v=20261009-01"></script>
+<script src="assets/js/api.js?v=20261009-02"></script>
 <script src="assets/js/storage.js?v=20260915-08"></script>
-<script src="assets/js/app.js?v=20260915-09"></script>
+<script src="assets/js/app.js?v=20261009-08"></script>
 </body>
 </html>

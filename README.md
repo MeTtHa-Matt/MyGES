@@ -18,6 +18,8 @@ Les données sont récupérées auprès de l’API MyGES via un proxy PHP. Le je
 - Interface en français, pensée pour mobile ;
 - installation possible depuis un navigateur compatible PWA ;
 - cache local de l’emploi du temps ;
+- ajout de calendriers Google publics et cache local de leurs évaluations ;
+- actualisation automatique toutes les 30 minutes, avec cache ICS partagé côté serveur ;
 - gestion des sessions, déconnexion et expiration de session ;
 - requêtes API avec délai d’expiration et messages d’erreur utilisateur ;
 - fallback pour plusieurs formats de réponses MyGES.
@@ -98,7 +100,7 @@ Ne versionnez jamais `.env`, un mot de passe, un jeton d’accès ou une clé se
 └── back end/              # Variante PWA autonome documentée séparément
 ```
 
-Le navigateur appelle uniquement `api/index.php`. Les routes disponibles sont `login`, `logout`, `profile`, `planning`, `grades`, `absences` et `supports`.
+Le navigateur appelle uniquement `api/index.php`. Les routes disponibles incluent `login`, `logout`, `profile`, `planning`, `grades`, `absences`, `supports` et `calendar` pour les flux ICS Google publics.
 
 ## Déploiement
 

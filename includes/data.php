@@ -24,6 +24,7 @@ $menu = [
         'label' => 'Cours',
         'sous_items' => [
             ['label' => 'Emploi du temps', 'href' => 'emploi_du_temps.php'],
+            ['label' => 'Devoirs', 'href' => 'devoirs.php'],
             ['label' => 'Notes', 'href' => 'notes.php'],
             ['label' => 'Support de cours', 'href' => 'supports.php'],
             ['label' => 'Projets pédagogiques', 'href' => 'projets.php'],
