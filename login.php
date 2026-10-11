@@ -14,7 +14,7 @@ require __DIR__ . '/includes/data.php';
 <link rel="apple-touch-icon" href="assets/img/favicon.jpeg">
 <link rel="manifest" href="manifest.json">
 <title>Connexion — Portail Étudiant</title>
-<link rel="stylesheet" href="assets/css/style.css?v=20260915-12">
+<link rel="stylesheet" href="assets/css/style.css?v=20261011-01">
 </head>
 <body>
 <div class="page-login">
@@ -41,6 +41,7 @@ require __DIR__ . '/includes/data.php';
             <div class="ligne-options">
                 <label><input type="checkbox" id="souvenir"> Se souvenir de moi</label>
             </div>
+            <p class="note-identifiants">Enregistre votre identifiant et votre mot de passe sur cet appareil pour renouveler automatiquement la session.</p>
             <button type="submit" class="bouton-connexion">Se connecter</button>
         </form>
 
@@ -53,8 +54,8 @@ require __DIR__ . '/includes/data.php';
     <div class="toast" id="toast"></div>
 </div>
 <script src="assets/js/cache-reset.js?v=20260917-02"></script>
-<script src="assets/js/api.js?v=20261009-03"></script>
-<script src="assets/js/storage.js?v=20260917-02"></script>
-<script src="assets/js/app.js?v=20261009-03"></script>
+<script src="assets/js/api.js?v=20261011-01"></script>
+<script src="assets/js/storage.js?v=20261011-01"></script>
+<script src="assets/js/app.js?v=20261011-01"></script>
 </body>
 </html>

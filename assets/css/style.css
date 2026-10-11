@@ -3704,6 +3704,12 @@ hr.separateur {
     margin-bottom: 22px;
     color: var(--texte-clair);
 }
+.note-identifiants {
+    margin: -14px 0 18px;
+    font-size: 11px;
+    color: var(--texte-clair);
+    line-height: 1.45;
+}
 .ligne-options a { color: var(--corail-fonce); font-weight: 600; }
 .bouton-connexion {
     width: 100%;

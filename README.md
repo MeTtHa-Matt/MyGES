@@ -21,6 +21,7 @@ Les données sont récupérées auprès de l’API MyGES via un proxy PHP. Le je
 - ajout de calendriers Google publics et cache local de leurs évaluations ;
 - actualisation automatique toutes les 30 minutes, avec cache ICS partagé côté serveur ;
 - gestion des sessions, déconnexion et expiration de session ;
+- reconnexion silencieuse avec les identifiants locaux lorsque « Se souvenir de moi » est activé ;
 - requêtes API avec délai d’expiration et messages d’erreur utilisateur ;
 - fallback pour plusieurs formats de réponses MyGES.
 
@@ -144,6 +145,7 @@ La réponse attendue est une erreur HTTP `401` tant qu’aucune session MyGES n�
 - Les endpoints MyGES sont externes et peuvent modifier leur contrat ou leurs réponses.
 - Ne journalisez jamais les mots de passe, les cookies de session ou les jetons.
 - Le cache local peut contenir des informations étudiantes : prévoyez une déconnexion et un effacement des données sur les appareils partagés.
+- « Se souvenir de moi » enregistre l’identifiant et le mot de passe en clair dans le stockage local du navigateur afin de renouveler la session MyGES. N’activez cette option que sur un appareil personnel de confiance; la déconnexion supprime ces identifiants.
 - Utilisez uniquement ce projet avec l’autorisation de l’établissement et du fournisseur de l’API.
 
 ## Variante `back end/`

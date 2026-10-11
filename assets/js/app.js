@@ -1402,12 +1402,17 @@ document.addEventListener('DOMContentLoaded', () => {
     const findSavedCredential = async () => {
         if (!login || sessionStorage.getItem('myges-auto-login-pending') !== 'true') return;
         sessionStorage.removeItem('myges-auto-login-pending');
-        if (!navigator.credentials?.get) return;
         try {
-            const credential = await navigator.credentials.get({ password: true, mediation: 'silent' });
-            if (!credential || credential.type !== 'password' || !credential.password) return;
-            login.identifiant.value = credential.id;
-            passwordInput.value = credential.password;
+            let credentials = window.mygesStorage.readRememberedCredentials();
+            if (!credentials && navigator.credentials?.get) {
+                const credential = await navigator.credentials.get({ password: true, mediation: 'silent' });
+                if (credential?.type === 'password' && credential.password) {
+                    credentials = { username: credential.id, password: credential.password };
+                }
+            }
+            if (!credentials?.username || !credentials.password) return;
+            login.identifiant.value = credentials.username;
+            passwordInput.value = credentials.password;
             document.getElementById('souvenir').checked = true;
             login.requestSubmit();
         } catch {}
@@ -1427,6 +1432,11 @@ document.addEventListener('DOMContentLoaded', () => {
             const rememberMe = Boolean(document.getElementById('souvenir')?.checked);
             const loginPayload = await window.mygesApi.login({ username: login.identifiant.value, password: login.mot_de_passe.value });
             window.mygesStorage.markSession(rememberMe);
+            if (rememberMe) {
+                window.mygesStorage.saveRememberedCredentials(login.identifiant.value, login.mot_de_passe.value);
+            } else {
+                window.mygesStorage.clearRememberedCredentials();
+            }
             if (loginPayload?.student?.name) updateStudent(loginPayload.student);
             try {
                 updateStudent(await window.mygesApi.profile());
@@ -1459,7 +1469,7 @@ document.addEventListener('DOMContentLoaded', () => {
         findSavedCredential();
 
     if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('sw.js?v=20260917-05', { scope: './', updateViaCache: 'none' }).catch(() => {});
+        navigator.serviceWorker.register('sw.js?v=20261011-01', { scope: './', updateViaCache: 'none' }).catch(() => {});
     }
 
     const isLogin = Boolean(login);
@@ -1497,6 +1507,7 @@ document.addEventListener('DOMContentLoaded', () => {
         appFrame?.classList.add('deconnexion-en-cours');
         animation?.setAttribute('aria-hidden', 'false');
         window.mygesStorage.clearSession();
+        window.mygesStorage.clearRememberedCredentials();
         await window.mygesApi.logout().catch(() => {});
         const remaining = 750 - (performance.now() - startedAt);
         if (remaining > 0) await new Promise(resolve => setTimeout(resolve, remaining));

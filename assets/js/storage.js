@@ -1,5 +1,6 @@
 const PLANNING_CACHE_PREFIX = 'myges-planning-week-v3-';
 const LEGACY_CACHE_PREFIXES = ['myges-snapshot-', 'myges-planning-cache-', 'myges-planning-week-'];
+const REMEMBERED_CREDENTIALS_KEY = 'myges-remembered-credentials';
 
 for (let index = localStorage.length - 1; index >= 0; index -= 1) {
     const key = localStorage.key(index);
@@ -29,6 +30,22 @@ window.mygesStorage = {
     },
     saveStudent(profile) {
         localStorage.setItem('myges-student', JSON.stringify(profile));
+    },
+    saveRememberedCredentials(username, password) {
+        localStorage.setItem(REMEMBERED_CREDENTIALS_KEY, JSON.stringify({ username, password }));
+    },
+    readRememberedCredentials() {
+        try {
+            const credentials = JSON.parse(localStorage.getItem(REMEMBERED_CREDENTIALS_KEY) || 'null');
+            return typeof credentials?.username === 'string' && typeof credentials?.password === 'string'
+                ? credentials
+                : null;
+        } catch {
+            return null;
+        }
+    },
+    clearRememberedCredentials() {
+        localStorage.removeItem(REMEMBERED_CREDENTIALS_KEY);
     },
     readStudent() {
         try {

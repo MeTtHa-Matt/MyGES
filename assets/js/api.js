@@ -3,21 +3,30 @@ const API_URL = new URL('api/index.php', document.baseURI);
 let rememberedLoginPromise = null;
 
 function reauthenticateRememberedUser() {
-    if (localStorage.getItem('myges-authenticated') !== 'true' || !navigator.credentials?.get) {
+    if (localStorage.getItem('myges-authenticated') !== 'true') {
         return Promise.resolve(false);
     }
     if (!rememberedLoginPromise) {
         rememberedLoginPromise = (async () => {
+            let credentials = window.mygesStorage?.readRememberedCredentials();
             try {
-                const credential = await navigator.credentials.get({ password: true, mediation: 'silent' });
-                if (!credential || credential.type !== 'password' || !credential.password) return false;
+                if (!credentials && navigator.credentials?.get) {
+                    const credential = await navigator.credentials.get({ password: true, mediation: 'silent' });
+                    if (credential?.type === 'password' && credential.password) {
+                        credentials = { username: credential.id, password: credential.password };
+                    }
+                }
+                if (!credentials?.username || !credentials.password) return false;
                 await request('login', {
                     method: 'POST',
-                    body: JSON.stringify({ username: credential.id, password: credential.password })
+                    body: JSON.stringify(credentials)
                 }, false);
                 window.mygesStorage?.markSession(true);
                 return true;
-            } catch {
+            } catch (error) {
+                if (credentials && [401, 403].includes(error.status)) {
+                    window.mygesStorage?.clearRememberedCredentials();
+                }
                 return false;
             }
         })().finally(() => { rememberedLoginPromise = null; });
