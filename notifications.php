@@ -15,7 +15,7 @@ $titre_page = 'Notifications et messages';
 <link rel="icon" href="assets/img/favicon.jpeg" type="image/jpeg">
 <link rel="manifest" href="manifest.json">
 <title>Notifications et messages — Portail Étudiant</title>
-<link rel="stylesheet" href="assets/css/style.css?v=20260917-09">
+<link rel="stylesheet" href="assets/css/style.css?v=20261011-03">
 </head>
 <body>
 <div class="app-frame">

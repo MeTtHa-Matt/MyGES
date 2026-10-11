@@ -3108,7 +3108,7 @@ hr.separateur {
 .rail-lateral {
     position: fixed;
     top: 0;
-    right: 0;
+    right: max(0px, calc((100% - 480px) / 2));
     height: 100%;
     width: 72px;
     background: #DDE0E1;
@@ -3156,7 +3156,7 @@ hr.separateur {
 .panneau-menu {
     position: fixed;
     top: 0;
-    right: 72px;
+    right: calc(72px + max(0px, calc((100% - 480px) / 2)));
     height: 100%;
     width: min(78%, 340px);
     background: var(--sombre);
