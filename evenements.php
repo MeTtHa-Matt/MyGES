@@ -65,7 +65,7 @@ $titre_page = 'Événements campus';
 <script src="assets/js/cache-reset.js?v=20260917-03"></script>
 <script src="assets/js/api.js?v=20261011-01"></script>
 <script src="assets/js/storage.js?v=20261011-01"></script>
-<script src="assets/js/app.js?v=20261011-01"></script>
+<script src="assets/js/app.js?v=20261011-02"></script>
 <script>
 (function () {
     const state = { items: [] };

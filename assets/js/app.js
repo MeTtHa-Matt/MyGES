@@ -1,7 +1,11 @@
 document.addEventListener('DOMContentLoaded', () => {
     window.addEventListener('myges:session-expired', () => {
-        if (!window.location.pathname.endsWith('/login.php')) sessionStorage.setItem('myges-auto-login-pending', 'true');
+        const rememberMe = localStorage.getItem('myges-authenticated') === 'true';
         window.mygesStorage.clearSession();
+        if (rememberMe) {
+            toast('La reconnexion automatique a échoué. Veuillez vous reconnecter manuellement.');
+            return;
+        }
         if (!window.location.pathname.endsWith('/login.php')) window.location.replace('login.php');
     }, { once: true });
 
@@ -1399,24 +1403,6 @@ document.addEventListener('DOMContentLoaded', () => {
         passwordToggle.setAttribute('aria-pressed', String(!isVisible));
         passwordToggle.setAttribute('aria-label', isVisible ? 'Afficher le mot de passe' : 'Masquer le mot de passe');
     });
-    const findSavedCredential = async () => {
-        if (!login || sessionStorage.getItem('myges-auto-login-pending') !== 'true') return;
-        sessionStorage.removeItem('myges-auto-login-pending');
-        try {
-            let credentials = window.mygesStorage.readRememberedCredentials();
-            if (!credentials && navigator.credentials?.get) {
-                const credential = await navigator.credentials.get({ password: true, mediation: 'silent' });
-                if (credential?.type === 'password' && credential.password) {
-                    credentials = { username: credential.id, password: credential.password };
-                }
-            }
-            if (!credentials?.username || !credentials.password) return;
-            login.identifiant.value = credentials.username;
-            passwordInput.value = credentials.password;
-            document.getElementById('souvenir').checked = true;
-            login.requestSubmit();
-        } catch {}
-    };
     if (login) login.addEventListener('submit', async event => {
         event.preventDefault();
         const submit = login.querySelector('.bouton-connexion');
@@ -1466,7 +1452,6 @@ document.addEventListener('DOMContentLoaded', () => {
             submit.textContent = 'Se connecter';
         }
     });
-        findSavedCredential();
 
     if ('serviceWorker' in navigator) {
         navigator.serviceWorker.register('sw.js?v=20261011-01', { scope: './', updateViaCache: 'none' }).catch(() => {});

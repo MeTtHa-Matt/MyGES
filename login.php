@@ -56,6 +56,6 @@ require __DIR__ . '/includes/data.php';
 <script src="assets/js/cache-reset.js?v=20260917-02"></script>
 <script src="assets/js/api.js?v=20261011-01"></script>
 <script src="assets/js/storage.js?v=20261011-01"></script>
-<script src="assets/js/app.js?v=20261011-01"></script>
+<script src="assets/js/app.js?v=20261011-02"></script>
 </body>
 </html>
