@@ -18,7 +18,7 @@ $duree_totale = '00h00';
 <link rel="icon" href="assets/img/favicon.jpeg" type="image/jpeg">
 <link rel="manifest" href="manifest.json">
 <title>Absences — Portail Étudiant</title>
-<link rel="stylesheet" href="assets/css/style.css?v=20261011-03">
+<link rel="stylesheet" href="assets/css/style.css?v=20261011-09">
 </head>
 <body>
 <div class="app-frame">

@@ -14,7 +14,7 @@ require __DIR__ . '/includes/data.php';
 <link rel="apple-touch-icon" href="assets/img/favicon.jpeg">
 <link rel="manifest" href="manifest.json">
 <title>Connexion — Portail Étudiant</title>
-<link rel="stylesheet" href="assets/css/style.css?v=20261011-03">
+<link rel="stylesheet" href="assets/css/style.css?v=20261011-09">
 </head>
 <body>
 <div class="page-login">

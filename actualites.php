@@ -16,7 +16,7 @@ $titre_page = 'Actualités';
 <link rel="apple-touch-icon" href="assets/img/favicon.jpeg">
 <link rel="manifest" href="manifest.json">
 <title>Actualités — Portail Étudiant</title>
-<link rel="stylesheet" href="assets/css/style.css?v=20261011-03">
+<link rel="stylesheet" href="assets/css/style.css?v=20261011-09">
 </head>
 <body>
 <div class="app-frame">
