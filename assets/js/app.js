@@ -1,13 +1,22 @@
 document.addEventListener('DOMContentLoaded', () => {
+    const connectionIndicator = document.getElementById('myges-connection-status');
+    const connectionLabels = {
+        connecting: 'Connexion à MyGES en cours',
+        connected: 'Connecté à MyGES',
+        disconnected: 'Déconnecté de MyGES'
+    };
+    window.addEventListener('myges:connection-status', event => {
+        if (!connectionIndicator) return;
+        const status = event.detail?.status;
+        if (!Object.prototype.hasOwnProperty.call(connectionLabels, status)) return;
+        connectionIndicator.dataset.status = status;
+        connectionIndicator.setAttribute('aria-label', connectionLabels[status]);
+        connectionIndicator.title = connectionLabels[status];
+    });
     window.addEventListener('myges:session-expired', () => {
         const rememberMe = localStorage.getItem('myges-authenticated') === 'true';
-        window.mygesStorage.clearSession();
-        if (rememberMe) {
-            toast('La reconnexion automatique a échoué. Veuillez vous reconnecter manuellement.');
-            return;
-        }
-        if (!window.location.pathname.endsWith('/login.php')) window.location.replace('login.php');
-    }, { once: true });
+        if (!rememberMe) window.mygesStorage.clearSession();
+    });
 
     const toastEl = document.getElementById('toast');
     let toastTimer;
@@ -1458,7 +1467,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     const isLogin = Boolean(login);
-    if (!isLogin && !window.mygesStorage.hasSession()) { window.location.href = 'login.php'; return; }
     if (!isLogin) {
         loadProfile();
         if (document.querySelector('.page-login')) return;
@@ -1483,7 +1491,6 @@ document.addEventListener('DOMContentLoaded', () => {
             if (event.persisted && document.querySelector('.section-accueil')) loadResource('planning', renderHome);
         });
     }
-    const logout = async () => { await window.mygesApi.logout().catch(() => {}); window.mygesStorage.clearSession(); window.location.href = 'login.php'; };
     document.getElementById('btn-confirmer-deconnexion')?.addEventListener('click', async event => {
         const button = event.currentTarget;
         const animation = document.getElementById('animation-deconnexion');

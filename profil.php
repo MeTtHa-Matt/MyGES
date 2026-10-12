@@ -16,7 +16,7 @@ $titre_page = 'Profil étudiant';
 <link rel="apple-touch-icon" href="assets/img/favicon.jpeg">
 <link rel="manifest" href="manifest.json">
 <title>Profil étudiant — Portail Étudiant</title>
-<link rel="stylesheet" href="assets/css/style.css?v=20261011-09">
+<link rel="stylesheet" href="assets/css/style.css?v=20261012-01">
 </head>
 <body>
 <div class="app-frame">

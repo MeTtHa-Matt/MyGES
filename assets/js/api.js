@@ -2,6 +2,10 @@ const REQUEST_TIMEOUT = 12000;
 const API_URL = new URL('api/index.php', document.baseURI);
 let rememberedLoginPromise = null;
 
+function setConnectionStatus(status) {
+    window.dispatchEvent(new CustomEvent('myges:connection-status', { detail: { status } }));
+}
+
 function reauthenticateRememberedUser() {
     if (localStorage.getItem('myges-authenticated') !== 'true') {
         return Promise.resolve(false);
@@ -26,6 +30,7 @@ function reauthenticateRememberedUser() {
             } catch (error) {
                 if (credentials && [401, 403].includes(error.status)) {
                     window.mygesStorage?.clearRememberedCredentials();
+                    window.mygesStorage?.clearSession();
                 }
                 return false;
             }
@@ -35,6 +40,8 @@ function reauthenticateRememberedUser() {
 }
 
 async function request(resource, options = {}, retryAfterReauthentication = true) {
+    const tracksConnection = !['calendar', 'logout', 'news'].includes(resource);
+    if (tracksConnection) setConnectionStatus('connecting');
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), options.timeout ?? REQUEST_TIMEOUT);
     try {
@@ -50,7 +57,7 @@ async function request(resource, options = {}, retryAfterReauthentication = true
         });
         const payload = await response.json().catch(() => ({}));
         if (!response.ok) {
-            if (response.status === 401 && resource !== 'login' && resource !== 'logout') {
+            if (response.status === 401 && tracksConnection && resource !== 'login') {
                 if (retryAfterReauthentication && await reauthenticateRememberedUser()) {
                     return request(resource, options, false);
                 }
@@ -58,10 +65,13 @@ async function request(resource, options = {}, retryAfterReauthentication = true
             }
             const error = new Error([payload.error, payload.diagnostic].filter(Boolean).join(' ') || 'Le serveur MyGES est indisponible.');
             error.status = response.status;
+            if (tracksConnection) setConnectionStatus('disconnected');
             throw error;
         }
+        if (tracksConnection) setConnectionStatus('connected');
         return payload;
     } catch (error) {
+        if (tracksConnection) setConnectionStatus('disconnected');
         if (error.name === 'AbortError') throw new Error('La connexion a dépassé le délai autorisé.');
         throw error;
     } finally {

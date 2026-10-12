@@ -23,7 +23,10 @@
         </div>
         <div class="top-bar-actions">
             <a href="index.php" class="icon-btn" aria-label="Accueil"><img src="assets/img/icone-maison.jpeg" alt=""></a>
-            <button type="button" class="icon-btn" id="btn-ouvrir-menu" aria-label="Ouvrir le menu"><img src="assets/img/icone-menu.svg" alt=""></button>
+            <div class="top-bar-menu-status">
+                <span id="myges-connection-status" class="connection-status" data-status="connecting" role="status" aria-label="Connexion à MyGES en cours" title="Connexion à MyGES en cours"></span>
+                <button type="button" class="icon-btn" id="btn-ouvrir-menu" aria-label="Ouvrir le menu"><img src="assets/img/icone-menu.svg" alt=""></button>
+            </div>
         </div>
     </div>
     <h1 class="top-bar-title"><?= htmlspecialchars($titre_page) ?></h1>

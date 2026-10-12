@@ -15,7 +15,7 @@ $titre_page = 'Support de cours';
 <link rel="icon" href="assets/img/favicon.jpeg" type="image/jpeg">
 <link rel="manifest" href="manifest.json">
 <title>Support de cours — Portail Étudiant</title>
-<link rel="stylesheet" href="assets/css/style.css?v=20261011-09">
+<link rel="stylesheet" href="assets/css/style.css?v=20261012-01">
 </head>
 <body>
 <div class="app-frame">

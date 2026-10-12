@@ -958,11 +958,35 @@ ul { list-style: none; margin: 0; padding: 0; }
     white-space: nowrap;
 }
 
+.connection-status {
+    width: 10px;
+    height: 10px;
+    flex: 0 0 10px;
+    border: 2px solid rgba(255, 255, 255, .9);
+    border-radius: 50%;
+    background: #ed8b00;
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, .12);
+}
+
+.connection-status[data-status="connected"] { background: #16803c; }
+.connection-status[data-status="disconnected"] { background: #b42318; }
+
 .top-bar-actions {
     display: flex;
     align-items: center;
     gap: 16px;
     margin-top: 12px;
+}
+
+.top-bar-menu-status {
+    position: relative;
+}
+
+.top-bar-menu-status .connection-status {
+    position: absolute;
+    top: -12px;
+    left: 50%;
+    transform: translateX(-50%);
 }
 
 .icon-btn {
@@ -977,7 +1001,7 @@ ul { list-style: none; margin: 0; padding: 0; }
 .icon-btn svg { width: 22px; height: 22px; }
 .icon-btn img { display: block; width: 22px; height: 22px; }
 .top-bar-actions .icon-btn:first-child img { width: 20px; height: 20px; }
-.top-bar-actions .icon-btn:last-child img { width: 28px; height: 28px; }
+.top-bar-actions #btn-ouvrir-menu img { width: 28px; height: 28px; }
 
 .top-bar-title {
     position: absolute;

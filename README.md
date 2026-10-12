@@ -22,6 +22,7 @@ Les données sont récupérées auprès de l’API MyGES via un proxy PHP. Le je
 - actualisation automatique toutes les 30 minutes, avec cache ICS partagé côté serveur ;
 - gestion des sessions, déconnexion et expiration de session ;
 - reconnexion silencieuse avec les identifiants locaux lorsque « Se souvenir de moi » est activé ;
+- indicateur de connexion MyGES dans l’en-tête ; une session expirée ne force plus le retour à la page de connexion ;
 - requêtes API avec délai d’expiration et messages d’erreur utilisateur ;
 - fallback pour plusieurs formats de réponses MyGES.
 

@@ -21,7 +21,7 @@ $prochains_cours = array_slice($prochains_cours, 0, 3);
 <link rel="apple-touch-icon" href="assets/img/favicon.jpeg">
 <link rel="manifest" href="manifest.json">
 <title>Accueil — Portail Étudiant</title>
-<link rel="stylesheet" href="assets/css/style.css?v=20261011-09">
+<link rel="stylesheet" href="assets/css/style.css?v=20261012-01">
 </head>
 <body>
 <div class="app-frame">
