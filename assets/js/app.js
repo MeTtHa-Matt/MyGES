@@ -261,12 +261,19 @@ document.addEventListener('DOMContentLoaded', () => {
     let assessmentCalendars = [];
     let assessmentEvents = [];
     let planningItems = [];
+    let planningLoaded = false;
     let assessmentRefreshPromise = null;
+    let selectedAssessmentCalendarUrl = '';
 
     const readAssessmentCalendars = () => {
         try {
             const value = JSON.parse(localStorage.getItem(ASSESSMENT_CALENDARS_KEY) || '[]');
-            return Array.isArray(value) ? value.filter(item => item && typeof item.url === 'string') : [];
+            return Array.isArray(value)
+                ? value.filter(item => item && typeof item.url === 'string').map(item => ({
+                    ...item,
+                    type: ['devoirs', 'garmin', 'autre'].includes(item.type) ? item.type : 'devoirs'
+                }))
+                : [];
         } catch { return []; }
     };
     const readAssessmentCache = () => {
@@ -279,12 +286,35 @@ document.addEventListener('DOMContentLoaded', () => {
     const setAssessmentEvents = cache => {
         assessmentEvents = assessmentCalendars.flatMap(calendar => {
             const feed = cache[calendar.url];
-            return Array.isArray(feed?.events) ? feed.events.map(item => ({ ...item, calendarUrl: calendar.url, calendarName: feed.name || calendar.name || 'Calendrier de cours' })) : [];
+            return Array.isArray(feed?.events) ? feed.events.map(item => ({
+                ...item,
+                calendarUrl: calendar.url,
+                calendarType: calendar.type || 'devoirs',
+                calendarName: feed.name || calendar.name || 'Calendrier de cours'
+            })) : [];
         }).sort((first, second) => String(first.start || '').localeCompare(String(second.start || '')));
         renderDevoirs();
-        if (document.querySelector('.nav-jour') && planningItems.length) renderPlanning(planningItems);
+        if (document.querySelector('.nav-jour') && planningLoaded) renderPlanning(planningItems);
     };
     const assessmentDate = item => item.date || String(item.start || '').slice(0, 10);
+    const assessmentTitle = item => {
+        if (item.title && item.title !== 'Évaluation') return item.title;
+        if (item.calendarType === 'garmin') return item.type || 'Séance Garmin';
+        return item.calendarType === 'autre' ? 'Événement' : 'Évaluation';
+    };
+    const calendarEventMoment = (item, key) => {
+        const value = item[key] || (key === 'start' ? item.date : '');
+        if (!value) return null;
+        const raw = String(value);
+        const parsed = new Date(/^\d{4}-\d{2}-\d{2}$/.test(raw) ? `${raw}T00:00:00` : raw);
+        return Number.isNaN(parsed.getTime()) ? null : parsed;
+    };
+    const calendarEventTime = (item, key) => {
+        const raw = item[key];
+        if (!raw || /^\d{4}-\d{2}-\d{2}$/.test(String(raw))) return '';
+        const parsed = calendarEventMoment(item, key);
+        return parsed ? parsed.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '';
+    };
     const assessmentLabelDate = item => {
         const date = assessmentDate(item);
         const parsed = date ? new Date(`${date}T12:00:00`) : new Date(item.start);
@@ -308,25 +338,36 @@ document.addEventListener('DOMContentLoaded', () => {
         const calendarList = document.getElementById('devoirs-calendar-list');
         const eventList = document.getElementById('devoirs-event-list');
         const eventCount = document.getElementById('devoirs-event-count');
-        if (!calendarList || !eventList) return;
+        const selectedEvents = document.getElementById('devoirs-selected-events');
+        const selectedTitle = document.getElementById('devoirs-events-title');
+        if (!calendarList || !eventList || !selectedEvents) return;
         const cache = readAssessmentCache();
         calendarList.innerHTML = assessmentCalendars.length ? assessmentCalendars.map((calendar, index) => {
             const feed = cache[calendar.url];
             const label = feed?.name || calendar.name || `Calendrier ${index + 1}`;
             const detail = feed?.error ? 'Synchronisation impossible' : feed?.fetchedAt ? `Mis à jour ${new Date(feed.fetchedAt).toLocaleString('fr-FR')}` : 'Pas encore synchronisé';
-            return `<div class="devoir-calendar-item"><span class="devoir-calendar-mark" aria-hidden="true"></span><span class="devoir-calendar-copy"><strong>${escapeHtml(label)}</strong><small>${escapeHtml(detail)}</small></span><button type="button" class="devoir-calendar-remove" data-remove-calendar="${index}" aria-label="Supprimer ${escapeHtml(label)}" title="Supprimer">×</button></div>`;
+            const type = calendar.type || 'devoirs';
+            const typeLabel = type === 'garmin' ? 'Garmin' : type === 'autre' ? 'Autre' : 'Devoirs';
+            const isSelected = calendar.url === selectedAssessmentCalendarUrl;
+            return `<article class="devoir-calendar-item"><button type="button" class="devoir-calendar-select${isSelected ? ' is-selected' : ''}" data-select-calendar="${escapeHtml(calendar.url)}" aria-expanded="${isSelected}"><span class="devoir-calendar-mark" aria-hidden="true"></span><span class="devoir-calendar-copy"><strong>${escapeHtml(label)}</strong><small>${typeLabel} · ${escapeHtml(detail)}</small></span></button><button type="button" class="devoir-calendar-remove" data-remove-calendar="${index}" aria-label="Supprimer ${escapeHtml(label)}" title="Supprimer">×</button></article>`;
         }).join('') : '<p class="devoirs-empty-inline">Aucun calendrier ajouté.</p>';
 
+        const calendar = assessmentCalendars.find(item => item.url === selectedAssessmentCalendarUrl);
+        selectedEvents.hidden = !calendar;
+        if (!calendar) return;
+        const feed = cache[calendar.url];
+        const selectedLabel = feed?.name || calendar.name || 'Calendrier connecté';
+        if (selectedTitle) selectedTitle.textContent = `Événements à venir · ${selectedLabel}`;
         const now = new Date();
-        const upcoming = assessmentEvents.filter(item => {
+        const upcoming = assessmentEvents.filter(item => item.calendarUrl === calendar.url).filter(item => {
             const date = assessmentDate(item);
             return date && date >= now.toISOString().slice(0, 10);
         }).slice(0, 100);
         if (eventCount) eventCount.textContent = String(upcoming.length);
         eventList.innerHTML = upcoming.length ? upcoming.map((item, eventPosition) => {
             const index = assessmentEvents.indexOf(item);
-            return `<button type="button" class="devoir-event${eventPosition === 0 ? ' is-next' : ''}" data-assessment-index="${index}"><span class="devoir-event-date">${escapeHtml(assessmentLabelDate(item))}</span><span class="devoir-event-copy"><strong>${escapeHtml(item.title || 'Évaluation')}</strong><small>${escapeHtml(item.calendarName || 'Calendrier de cours')}${item.location ? ` · ${escapeHtml(item.location)}` : ''}</small></span><span class="devoir-event-arrow" aria-hidden="true">›</span></button>`;
-        }).join('') : `<div class="etat-vide-mini">${assessmentCalendars.length ? 'Aucune évaluation à venir dans les calendriers.' : 'Ajoutez un calendrier pour afficher les prochaines évaluations.'}</div>`;
+            return `<button type="button" class="devoir-event${eventPosition === 0 ? ' is-next' : ''}" data-assessment-index="${index}"><span class="devoir-event-date">${escapeHtml(assessmentLabelDate(item))}</span><span class="devoir-event-copy"><strong>${escapeHtml(assessmentTitle(item))}</strong><small>${escapeHtml(item.calendarName || 'Calendrier de cours')}${item.location ? ` · ${escapeHtml(item.location)}` : ''}</small></span><span class="devoir-event-arrow" aria-hidden="true">›</span></button>`;
+        }).join('') : `<div class="etat-vide-mini">${feed?.error ? `Impossible de synchroniser ce calendrier : ${escapeHtml(feed.error)}` : 'Aucun événement à venir dans ce calendrier.'}</div>`;
     }
 
     const safeAssessmentDescription = value => {
@@ -376,7 +417,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const details = document.getElementById('devoir-modal-details');
         if (!modal || !title || !details) return;
         clearTimeout(assessmentModalCloseTimer);
-        title.textContent = item.title || 'Évaluation';
+        title.textContent = assessmentTitle(item);
         const url = typeof item.url === 'string' && /^https:\/\//i.test(item.url) ? `<p><a href="${escapeHtml(item.url)}" target="_blank" rel="noopener noreferrer">Ouvrir le lien associé</a></p>` : '';
         details.innerHTML = `<dl class="devoir-modal-info"><div><dt>Date</dt><dd>${escapeHtml(assessmentLabelDate(item))}</dd></div>${item.location ? `<div><dt>Lieu</dt><dd>${escapeHtml(item.location)}</dd></div>` : ''}<div><dt>Calendrier</dt><dd>${escapeHtml(item.calendarName || 'Calendrier de cours')}</dd></div></dl>${item.description ? `<div class="devoir-modal-description">${safeAssessmentDescription(item.description)}</div>` : '<p class="devoir-modal-description">Aucune description supplémentaire.</p>'}${url}`;
         modal.classList.remove('is-closing', 'is-open');
@@ -451,10 +492,21 @@ document.addEventListener('DOMContentLoaded', () => {
             const status = document.getElementById('devoirs-form-status');
             const value = input?.value.trim() || '';
             if (!value) return;
+            const type = document.getElementById('devoirs-calendar-type')?.value || '';
+            if (!['devoirs', 'garmin', 'autre'].includes(type)) {
+                if (status) status.textContent = 'Choisissez le type de calendrier.';
+                return;
+            }
             let calendarUrl;
             try { calendarUrl = new URL(value); } catch {}
-            if (calendarUrl?.protocol !== 'https:' || calendarUrl.hostname !== 'calendar.google.com' || (!calendarUrl.searchParams.has('cid') && !/^\/calendar\/ical\/[^/]+\/public\/(?:basic\.ics)?$/.test(calendarUrl.pathname))) {
-                if (status) status.textContent = 'Utilisez un lien de calendrier Google public.';
+            const isGoogleCalendar = calendarUrl?.protocol === 'https:'
+                && calendarUrl.hostname === 'calendar.google.com'
+                && (calendarUrl.searchParams.has('cid') || /^\/calendar\/ical\/[^/]+\/public\/(?:basic\.ics)?$/.test(calendarUrl.pathname));
+            const isGarminCalendar = /^https:\/\/connect\.garmin\.com\/modern\/calendar\/export\/[a-f0-9]{32}$/i.test(value);
+            if ((type === 'garmin' && !isGarminCalendar) || (type !== 'garmin' && !isGoogleCalendar)) {
+                if (status) status.textContent = type === 'garmin'
+                    ? 'Utilisez le lien d’export Garmin Connect au format attendu.'
+                    : 'Utilisez un lien de calendrier Google public.';
                 return;
             }
             if (assessmentCalendars.some(calendar => calendar.url === value)) {
@@ -465,9 +517,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (status) status.textContent = 'La limite de 10 calendriers est atteinte.';
                 return;
             }
-            assessmentCalendars = [...assessmentCalendars, { url: value }];
+            assessmentCalendars = [...assessmentCalendars, { url: value, type }];
             localStorage.setItem(ASSESSMENT_CALENDARS_KEY, JSON.stringify(assessmentCalendars));
             if (input) input.value = '';
+            const typeSelect = document.getElementById('devoirs-calendar-type');
+            if (typeSelect) typeSelect.value = '';
             if (status) status.textContent = '';
             renderDevoirs();
             await refreshAssessmentCalendars();
@@ -484,11 +538,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 const savedCalendars = readAssessmentCalendars();
                 const removedCalendar = savedCalendars[index];
                 assessmentCalendars = savedCalendars.filter((calendar, calendarIndex) => calendarIndex !== index);
+                if (removedCalendar?.url === selectedAssessmentCalendarUrl) selectedAssessmentCalendarUrl = '';
                 localStorage.setItem(ASSESSMENT_CALENDARS_KEY, JSON.stringify(assessmentCalendars));
                 const cache = readAssessmentCache();
                 if (removedCalendar) delete cache[removedCalendar.url];
                 localStorage.setItem(ASSESSMENT_EVENTS_KEY, JSON.stringify(cache));
                 setAssessmentEvents(cache);
+                return;
+            }
+            const calendarButton = event.target.closest('[data-select-calendar]');
+            if (calendarButton) {
+                selectedAssessmentCalendarUrl = calendarButton.dataset.selectCalendar || '';
+                renderDevoirs();
+                const details = document.getElementById('devoirs-selected-events');
+                if (details && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+                    requestAnimationFrame(() => details.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+                }
                 return;
             }
             const trigger = event.target.closest('[data-assessment-index]');
@@ -516,18 +581,33 @@ document.addEventListener('DOMContentLoaded', () => {
         content.querySelector('.planning-assessment-layer')?.remove();
         if (!placements.length) return;
         const contentRect = content.getBoundingClientRect();
-        const buttons = placements.map(placement => {
+        const buttons = placements.flatMap(placement => {
             const rows = placement.courseIndexes
                 .map(index => content.querySelector(`[data-planning-course-index="${index}"]`))
                 .filter(Boolean);
-            if (!rows.length) return '';
-            const first = rows[0].getBoundingClientRect();
-            const last = rows[rows.length - 1].getBoundingClientRect();
-            const top = Math.max(0, first.top - contentRect.top);
-            const height = Math.max(44, last.bottom - first.top);
+            if (!rows.length) return [];
+            const groups = [[rows[0]]];
+            for (const row of rows.slice(1)) {
+                const group = groups[groups.length - 1];
+                const previous = group[group.length - 1];
+                let sibling = previous.nextElementSibling;
+                let separated = false;
+                while (sibling && sibling !== row) {
+                    if (sibling.matches('.creneau-external')) separated = true;
+                    sibling = sibling.nextElementSibling;
+                }
+                if (separated) groups.push([row]);
+                else groups[groups.length - 1].push(row);
+            }
             const label = /\b(devoir|dm|rendu)\b/i.test(assessmentText(placement.item)) ? 'Devoir' : 'Évaluation';
             const accessibleType = label === 'Devoir' ? 'du devoir' : 'de l’évaluation';
-            return `<button type="button" class="planning-assessment-alert" style="top:${top}px;height:${height}px" data-assessment-index="${placement.eventIndex}" aria-label="Ouvrir les détails ${accessibleType}">${label}</button>`;
+            return groups.map(group => {
+                const first = group[0].getBoundingClientRect();
+                const last = group[group.length - 1].getBoundingClientRect();
+                const top = Math.max(0, first.top - contentRect.top);
+                const height = Math.max(44, last.bottom - first.top);
+                return `<button type="button" class="planning-assessment-alert" style="top:${top}px;height:${height}px" data-assessment-index="${placement.eventIndex}" aria-label="Ouvrir les détails ${accessibleType}">${label}</button>`;
+            });
         }).join('');
         if (buttons) content.insertAdjacentHTML('beforeend', `<div class="planning-assessment-layer" aria-label="Évaluations et devoirs">${buttons}</div>`);
     }
@@ -537,13 +617,14 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!content) return;
         content.classList.add('planning-assessment-content');
         planningItems = items;
+        planningLoaded = true;
         const selected = typeof DATE_AFFICHEE !== 'undefined' ? DATE_AFFICHEE : new Date().toISOString().slice(0, 10);
         const datedItems = items.filter(item => dateKey(item));
         const visible = datedItems.length
             ? datedItems.filter(item => dateKey(item) === selected)
             : [];
         const ordered = [...visible].sort((first, second) => (eventMoment(first)?.getTime() || 0) - (eventMoment(second)?.getTime() || 0));
-        const dayAssessments = assessmentEvents.filter(assessment => assessmentDate(assessment) === selected);
+        const dayAssessments = assessmentEvents.filter(assessment => (assessment.calendarType || 'devoirs') === 'devoirs' && assessmentDate(assessment) === selected);
         const placements = dayAssessments.map(assessment => {
             let courseIndexes = ordered.map((item, index) => assessmentMatchesCourse(assessment, normalize(item).title) ? index : -1).filter(index => index >= 0);
             const start = eventMoment(assessment);
@@ -559,23 +640,51 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!courseIndexes.length && ordered.length === 1) courseIndexes = [0];
             return { item: assessment, eventIndex: assessmentEvents.indexOf(assessment), courseIndexes };
         }).filter(placement => placement.courseIndexes.length);
+        const externalEvents = assessmentEvents.filter(assessment => assessment.calendarType === 'autre' && assessmentDate(assessment) === selected);
+        const garminEvents = assessmentEvents.filter(assessment => assessment.calendarType === 'garmin' && assessmentDate(assessment) === selected);
         const assessmentCourses = new Set(placements.flatMap(placement => placement.courseIndexes));
-        const rows = ordered.reduce((html, item, index) => {
-            const previous = ordered[index - 1];
-            const previousEnd = previous && eventMoment(previous, true);
+        const pauseEntries = ordered.slice(1).flatMap((item, index) => {
+            const previousEnd = eventMoment(ordered[index], true);
             const currentStart = eventMoment(item);
-            if (previousEnd && currentStart && currentStart > previousEnd) {
-                const pauseTime = previousEnd.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }).replace(':', 'h');
+            return previousEnd && currentStart && currentStart > previousEnd
+                ? [{ kind: 'pause', moment: previousEnd }]
+                : [];
+        });
+        const scheduleEntries = [
+            ...ordered.map((item, index) => ({ kind: 'course', item, index, moment: eventMoment(item) })),
+            ...externalEvents.map(item => ({ kind: 'external', item, moment: calendarEventMoment(item, 'start') })),
+            ...pauseEntries
+        ].sort((first, second) => (first.moment?.getTime() ?? Number.MAX_SAFE_INTEGER) - (second.moment?.getTime() ?? Number.MAX_SAFE_INTEGER));
+        const scheduleRows = scheduleEntries.reduce((html, entry, index) => {
+            if (entry.kind === 'pause') {
+                const pauseTime = entry.moment.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }).replace(':', 'h');
                 html += `<div class="creneau creneau-pause"><div class="creneau-heure"><span>${escapeHtml(pauseTime)}</span></div><div class="creneau-barre"></div><div class="creneau-corps"><div class="titre">Pas de cours</div></div></div>`;
+                return html;
             }
-            const entry = normalize(item);
-            const [startTime, endTime] = entry.time.split(/\s+-\s+/);
-            const displayedEnd = !ordered[index + 1] && endTime ? `<span>${escapeHtml(endTime)}</span>` : '';
-            const assessmentClass = assessmentCourses.has(index) ? ' creneau-has-assessment' : '';
-            return html + `<div class="creneau${assessmentClass}" data-planning-course-index="${index}"><div class="creneau-heure"><span>${escapeHtml(startTime)}</span>${displayedEnd}</div><div class="creneau-barre" style="background:${escapeHtml(courseColor(item, index))}"></div><div class="creneau-corps"><div class="titre">${escapeHtml(entry.title)}</div><div class="meta">${escapeHtml(entry.type)}${entry.teacher ? `<br>${escapeHtml(entry.teacher)}` : ''}<br><strong>${escapeHtml(entry.room)}</strong></div></div></div>`;
+            if (entry.kind === 'external') {
+                const startTime = calendarEventTime(entry.item, 'start') || 'Horaire à confirmer';
+                const endTime = calendarEventTime(entry.item, 'end');
+                const displayedEnd = endTime ? `<span>${escapeHtml(endTime)}</span>` : '';
+                const eventIndex = assessmentEvents.indexOf(entry.item);
+                const title = assessmentTitle(entry.item);
+                return html + `<button type="button" class="creneau creneau-external" data-assessment-index="${eventIndex}" aria-label="Ouvrir ${escapeHtml(title)}"><div class="creneau-heure"><span>${escapeHtml(startTime)}</span>${displayedEnd}</div><div class="creneau-barre"></div><div class="creneau-corps"><div class="titre">${escapeHtml(title)}</div><div class="meta">${escapeHtml(entry.item.calendarName || 'Calendrier externe')}${entry.item.location ? `<br><strong>${escapeHtml(entry.item.location)}</strong>` : ''}</div></div></button>`;
+            }
+            const item = entry.item;
+            const courseEntry = normalize(item);
+            const [startTime, endTime] = courseEntry.time.split(/\s+-\s+/);
+            const displayedEnd = entry.index === ordered.length - 1 && endTime ? `<span>${escapeHtml(endTime)}</span>` : '';
+            const assessmentClass = assessmentCourses.has(entry.index) ? ' creneau-has-assessment' : '';
+            return html + `<div class="creneau${assessmentClass}" data-planning-course-index="${entry.index}"><div class="creneau-heure"><span>${escapeHtml(startTime)}</span>${displayedEnd}</div><div class="creneau-barre" style="background:${escapeHtml(courseColor(item, entry.index))}"></div><div class="creneau-corps"><div class="titre">${escapeHtml(courseEntry.title)}</div><div class="meta">${escapeHtml(courseEntry.type)}${courseEntry.teacher ? `<br>${escapeHtml(courseEntry.teacher)}` : ''}<br><strong>${escapeHtml(courseEntry.room)}</strong></div></div></div>`;
         }, '');
+        const garminRows = garminEvents.map((item, index) => {
+            const title = assessmentTitle(item);
+            const eventIndex = assessmentEvents.indexOf(item);
+            const firstClass = index === 0 ? ' creneau-garmin-premier' : '';
+            return `<button type="button" class="creneau creneau-external creneau-garmin${firstClass}" data-assessment-index="${eventIndex}" aria-label="Ouvrir la séance Garmin ${escapeHtml(title)}"><div class="creneau-barre"></div><div class="creneau-corps"><div class="titre">${escapeHtml(title)}</div><div class="meta">${escapeHtml(item.calendarName || 'Garmin')}${item.location ? `<br><strong>${escapeHtml(item.location)}</strong>` : ''}</div></div></button>`;
+        }).join('');
         const schedule = content.querySelector('.nav-jour')?.nextElementSibling;
         content.querySelectorAll('.creneau, .creneau-vide, .planning-empty').forEach(element => element.remove());
+        const rows = scheduleRows + garminRows;
         schedule?.insertAdjacentHTML('afterend', rows || '<div class="etat-vide planning-empty"><p>Pas de cours ce jour</p><img class="etat-vide-image" src="assets/img/image.png" alt="Aucun cours ce jour"></div>');
         renderPlanningAssessments(content, placements);
         window.DONNEES_EMPLOI_DU_TEMPS = items.reduce((all, item) => { const key = dateKey(item); if (key) (all[key] ||= []).push(item); return all; }, {});
@@ -1463,7 +1572,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('sw.js?v=20261011-01', { scope: './', updateViaCache: 'none' }).catch(() => {});
+        navigator.serviceWorker.register('sw.js?v=20261015-05', { scope: './', updateViaCache: 'none' }).catch(() => {});
     }
 
     const isLogin = Boolean(login);

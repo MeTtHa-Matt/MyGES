@@ -18,7 +18,8 @@ Les données sont récupérées auprès de l’API MyGES via un proxy PHP. Le je
 - Interface en français, pensée pour mobile ;
 - installation possible depuis un navigateur compatible PWA ;
 - cache local de l’emploi du temps ;
-- ajout de calendriers Google publics et cache local de leurs évaluations ;
+- ajout de calendriers Google publics ou d’exports Garmin Connect classés « Devoirs », « Garmin » ou « Autre », avec affichage adapté dans l’emploi du temps ;
+- consultation des prochains événements par calendrier connecté et cache local des flux ;
 - actualisation automatique toutes les 30 minutes, avec cache ICS partagé côté serveur ;
 - gestion des sessions, déconnexion et expiration de session ;
 - reconnexion silencieuse avec les identifiants locaux lorsque « Se souvenir de moi » est activé ;

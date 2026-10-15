@@ -179,11 +179,18 @@ function requestBody(): array {
     return is_array($body) ? $body : [];
 }
 
-function publicCalendarId(string $input): ?string {
+function publicCalendarSource(string $input): ?array {
     $input = trim($input);
     if (filter_var($input, FILTER_VALIDATE_URL)) {
         $parts = parse_url($input);
-        if (!is_array($parts) || strtolower((string) ($parts['scheme'] ?? '')) !== 'https' || strtolower((string) ($parts['host'] ?? '')) !== 'calendar.google.com') return null;
+        if (!is_array($parts) || strtolower((string) ($parts['scheme'] ?? '')) !== 'https') return null;
+        $host = strtolower((string) ($parts['host'] ?? ''));
+        if ($host === 'connect.garmin.com') {
+            if (isset($parts['port']) || isset($parts['user']) || isset($parts['pass']) || isset($parts['query']) || isset($parts['fragment'])
+                || !preg_match('~^/modern/calendar/export/([a-f0-9]{32})$~i', (string) ($parts['path'] ?? ''), $match)) return null;
+            return ['provider' => 'garmin', 'identifier' => 'https://connect.garmin.com/modern/calendar/export/' . strtolower($match[1])];
+        }
+        if ($host !== 'calendar.google.com') return null;
         parse_str((string) ($parts['query'] ?? ''), $query);
         if (!empty($query['cid'])) {
             $decoded = base64_decode(strtr((string) $query['cid'], '-_', '+/'), true);
@@ -194,16 +201,21 @@ function publicCalendarId(string $input): ?string {
             return null;
         }
     }
-    return preg_match('/^[A-Za-z0-9._+-]+@[A-Za-z0-9.-]+$/', $input) ? $input : null;
+    return preg_match('/^[A-Za-z0-9._+-]+@[A-Za-z0-9.-]+$/', $input)
+        ? ['provider' => 'google', 'identifier' => $input]
+        : null;
 }
 
-function fetchPublicCalendar(string $calendarId): array {
-    $url = 'https://calendar.google.com/calendar/ical/' . rawurlencode($calendarId) . '/public/basic.ics';
+function fetchPublicCalendar(array $source): array {
+    $isGarmin = $source['provider'] === 'garmin';
+    $url = $isGarmin
+        ? $source['identifier']
+        : 'https://calendar.google.com/calendar/ical/' . rawurlencode($source['identifier']) . '/public/basic.ics';
     $curl = curl_init($url);
     curl_setopt_array($curl, [
         CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_FOLLOWLOCATION => true,
-        CURLOPT_MAXREDIRS => 3,
+        CURLOPT_FOLLOWLOCATION => !$isGarmin,
+        CURLOPT_MAXREDIRS => $isGarmin ? 0 : 3,
         CURLOPT_CONNECTTIMEOUT => 5,
         CURLOPT_TIMEOUT => 15,
         CURLOPT_PROTOCOLS => CURLPROTO_HTTPS,
@@ -214,8 +226,11 @@ function fetchPublicCalendar(string $calendarId): array {
     $status = (int) curl_getinfo($curl, CURLINFO_RESPONSE_CODE);
     $contentType = (string) curl_getinfo($curl, CURLINFO_CONTENT_TYPE);
     curl_close($curl);
-    if (!is_string($body) || $status < 200 || $status >= 300 || strlen($body) > 1048576 || stripos($contentType, 'text/calendar') === false) {
-        respond(['error' => 'Calendrier Google inaccessible ou non public.'], 502);
+    $calendarBody = is_string($body) && preg_match('/^(?:\xEF\xBB\xBF)?\s*BEGIN:VCALENDAR/im', $body) === 1;
+    $validContentType = stripos($contentType, 'text/calendar') !== false
+        || ($isGarmin && $calendarBody);
+    if (!is_string($body) || $status < 200 || $status >= 300 || strlen($body) > 1048576 || !$validContentType) {
+        respond(['error' => 'Calendrier inaccessible, non public ou au format non pris en charge.'], 502);
     }
 
     $lines = preg_split("/\r\n|\n|\r/", $body) ?: [];
@@ -281,19 +296,20 @@ function fetchPublicCalendar(string $calendarId): array {
     return ['name' => $calendarName, 'events' => $events];
 }
 
-function fetchPublicCalendarCached(string $calendarId): array {
+function fetchPublicCalendarCached(array $source): array {
     $directory = privateRuntimeDirectory();
     if ($directory === null) {
         limitUpstreamConcurrency();
-        return fetchPublicCalendar($calendarId);
+        return fetchPublicCalendar($source);
     }
-    $cacheKey = hash('sha256', $calendarId);
+    $cacheIdentifier = $source['provider'] === 'garmin' ? 'garmin:' . $source['identifier'] : $source['identifier'];
+    $cacheKey = hash('sha256', $cacheIdentifier);
     $cachePath = $directory . '/calendar-' . $cacheKey . '.json';
     $lock = @fopen($directory . '/calendar-' . $cacheKey . '.lock', 'c');
     if ($lock === false || !flock($lock, LOCK_EX)) {
         if (is_resource($lock)) fclose($lock);
         limitUpstreamConcurrency();
-        return fetchPublicCalendar($calendarId);
+        return fetchPublicCalendar($source);
     }
 
     try {
@@ -305,7 +321,7 @@ function fetchPublicCalendarCached(string $calendarId): array {
         }
 
         limitUpstreamConcurrency();
-        $payload = fetchPublicCalendar($calendarId);
+        $payload = fetchPublicCalendar($source);
         $body = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
         if (is_string($body) && strlen($body) <= 3145728) {
             $cacheFile = @fopen($cachePath, 'c');
@@ -1451,9 +1467,9 @@ $routes = [
 if ($method === 'POST' && !isSameOriginMutation()) respond(['error' => 'Requête refusée.'], 403);
 if ($resource === 'calendar') {
     if ($method !== 'GET') respond(['error' => 'Méthode non autorisée.'], 405);
-    $calendarId = publicCalendarId((string) ($_GET['calendarId'] ?? ''));
-    if ($calendarId === null) respond(['error' => 'Lien de calendrier Google public invalide.'], 422);
-    respond(fetchPublicCalendarCached($calendarId));
+    $calendarSource = publicCalendarSource((string) ($_GET['calendarId'] ?? ''));
+    if ($calendarSource === null) respond(['error' => 'Lien de calendrier Google public ou Garmin Connect invalide.'], 422);
+    respond(fetchPublicCalendarCached($calendarSource));
 }
 if ($resource === 'login' && $method === 'POST') {
     $body = requestBody();

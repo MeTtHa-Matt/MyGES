@@ -40,7 +40,7 @@ $cours_du_jour = $emploi_du_temps[$date_affichee] ?? [];
 <link rel="icon" href="assets/img/favicon.jpeg" type="image/jpeg">
 <link rel="manifest" href="manifest.json">
 <title>Emploi du temps — Portail Étudiant</title>
-<link rel="stylesheet" href="assets/css/style.css?v=20261012-01">
+<link rel="stylesheet" href="assets/css/style.css?v=20261015-06">
 <style media="print">
     .top-bar-actions, .rail-lateral, .panneau-menu, .overlay-menu, .actions-flottantes, .nav-jour button { display: none !important; }
 </style>
@@ -130,6 +130,6 @@ $cours_du_jour = $emploi_du_temps[$date_affichee] ?? [];
 <script src="assets/js/cache-reset.js?v=20260917-02"></script>
 <script src="assets/js/api.js?v=20261011-01"></script>
 <script src="assets/js/storage.js?v=20261011-01"></script>
-<script src="assets/js/app.js?v=20261011-02"></script>
+<script src="assets/js/app.js?v=20261015-05"></script>
 </body>
 </html>
